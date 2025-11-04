@@ -1,6 +1,3 @@
-# Allow settings.local.json in this project
-!.claude/settings.local.json
-
 # Hook logs
 hook-logs/
 
