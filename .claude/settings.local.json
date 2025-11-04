@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "mcp__clojure-mcp__clojure_eval",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(bb:*)",
+      "Bash(git commit:*)"
     ]
   },
   "hooks": {

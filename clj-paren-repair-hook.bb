@@ -70,24 +70,10 @@
         exit-code (:exit result)]
     (if (zero? exit-code)
       (try
-        (let [parsed (json/parse-string (:out result) true)
-              success (:success parsed)
-              text (:text parsed)
-              error (:error parsed)]
-          (if success
-            {:success true
-             :repaired-text text
-             :error nil}
-            {:success false
-             :repaired-text nil
-             :error (or error "Parinfer repair failed")}))
+        (json/parse-string (:out result) true)
         (catch Exception e
-          {:success false
-           :repaired-text nil
-           :error (str "Failed to parse parinfer output: " (.getMessage e))}))
-      {:success false
-       :repaired-text nil
-       :error (str "parinfer-rust exited with code " exit-code ": " (:err result))})))
+          {:success false}))
+      {:success false})))
 
 (defn fix-delimiters
   "Takes a Clojure string and attempts to fix delimiter errors.
@@ -95,19 +81,9 @@
    If no delimiter errors exist, returns the original string."
   [s]
   (if (delimiter-error? s)
-    ;; Has delimiter error - try to repair
-    (let [repair-result (parinfer-repair s)]
-      (if (:success repair-result)
-        ;; Parinfer succeeded - verify the repair
-        (let [repaired-text (:repaired-text repair-result)]
-          (if (delimiter-error? repaired-text)
-            ;; Still has delimiter errors after repair
-            false
-            ;; Successfully repaired!
-            repaired-text))
-        ;; Parinfer failed
-        false))
-    ;; No delimiter errors - return original
+    (let [{:keys [text success]} (parinfer-repair s)]
+      (when (and success text (not (delimiter-error? text)))
+        text))
     s))
 
 ;; ============================================================================
