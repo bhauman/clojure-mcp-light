@@ -170,7 +170,8 @@
   (let [{:keys [file_path]} tool_input
         backup (backup-path file_path session_id)]
     (log-msg "PostEdit:" file_path)
-    (when (and (clojure-file? file_path) tool_response)
+    (if-not (and (clojure-file? file_path) tool_response)
+      nil
       (let [file-content (slurp file_path)]
         (if (delimiter-error? file-content)
           (do
@@ -180,17 +181,19 @@
                 (log-msg "  Fix successful, applying fix and deleting backup")
                 (spit file_path fixed-content)
                 (delete-backup backup)
-                (binding [*out* *err*]
-                  (println "Auto-fixed delimiter errors in" file_path)))
+                {:hookSpecificOutput
+                 {:hookEventName "PostToolUse"
+                  :additionalContext (str "Auto-fixed delimiter errors in " file_path)}})
               (do
                 (log-msg "  Fix failed, restoring from backup:" backup)
                 (restore-file file_path backup)
-                (binding [*out* *err*]
-                  (println "Warning: Delimiter errors could not be fixed, restored from backup:" file_path)))))
+                {:decision "block"
+                 :reason (str "Delimiter errors could not be auto-fixed. File was restored from backup to previous state: " file_path)
+                 :hookSpecificOutput {:hookEventName "PostToolUse"}})))
           (do
             (log-msg "  No delimiter errors, deleting backup")
-            (delete-backup backup)))))
-    nil))
+            (delete-backup backup)
+            nil))))))
 
 (defn process-hook
   [hook-input]
