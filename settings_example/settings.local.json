@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/absolute/path/to/clojure-mcp-light/clj-paren-repair-hook.bb"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/absolute/path/to/clojure-mcp-light/clj-paren-repair-hook.bb"
+          }
+        ]
+      }
+    ]
+  }
+}

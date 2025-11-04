@@ -89,6 +89,8 @@ Clojure-mcp-light provides automatic detection and fixing of delimiter errors (m
    }
    ```
 
+   See [settings_example/settings.local.json](settings_example/settings.local.json) for a complete example.
+
 ## How It Works
 
 The system uses Claude Code's hook mechanism to intercept file operations:
