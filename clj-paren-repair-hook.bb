@@ -39,22 +39,6 @@
         (and (= :edamame/error (:type data))
              (contains? data :edamame/opened-delimiter))))))
 
-(defn get-delimiter-error-info
-  "Returns detailed information about a delimiter error, or nil if no error."
-  [s]
-  (try
-    (e/parse-string-all s)
-    nil
-    (catch clojure.lang.ExceptionInfo ex
-      (let [data (ex-data ex)]
-        (when (and (= :edamame/error (:type data))
-                   (contains? data :edamame/opened-delimiter))
-          {:message (.getMessage ex)
-           :error-location {:row (:row data) :col (:col data)}
-           :opened-delimiter (:edamame/opened-delimiter data)
-           :opened-location (:edamame/opened-delimiter-loc data)
-           :expected-delimiter (:edamame/expected-delimiter data)})))))
-
 (defn parinfer-repair
   "Attempts to repair delimiter errors using parinfer-rust.
    Returns a map with:
@@ -130,20 +114,16 @@
     (clojure.java.io/delete-file backup-path)))
 
 (defn process-pre-write
-  [hook-input]
-  (let [tool-input (:tool_input hook-input)
-        file-path (:file_path tool-input)
-        content (:content tool-input)]
-
-    (log-msg "PreWrite:" file-path)
-
-    (if-not (clojure-file? file-path)
+  [{:keys [tool_input]}]
+  (let [{:keys [file_path content]} tool_input
+        base-output {:hookSpecificOutput
+                     {:hookEventName "PreToolUse"
+                      :permissionDecision "allow"}}]
+    (log-msg "PreWrite:" file_path)
+    (if-not (clojure-file? file_path)
       (do
         (log-msg "  Skipping non-Clojure file")
-        {:hookSpecificOutput
-         {:hookEventName "PreToolUse"
-          :permissionDecision "allow"}})
-
+        base-output)
       (if (delimiter-error? content)
         (do
           (log-msg "  Delimiter error detected, attempting fix")
@@ -151,56 +131,40 @@
             (if fixed-content
               (do
                 (log-msg "  Fix successful, allowing write with updated content")
-                {:hookSpecificOutput
-                 {:hookEventName "PreToolUse"
-                  :permissionDecision "allow"
-                  :permissionDecisionReason "Auto-fixed delimiter errors"
-                  :updatedInput {:file_path file-path
-                                 :content fixed-content}}})
+                (-> base-output
+                    (assoc-in [:hookSpecificOutput :permissionDecisionReason] "Auto-fixed delimiter errors")
+                    (assoc-in [:hookSpecificOutput :updatedInput] {:file_path file_path
+                                                                   :content fixed-content})))
               (do
                 (log-msg "  Fix failed, denying write")
-                {:hookSpecificOutput
-                 {:hookEventName "PreToolUse"
-                  :permissionDecision "deny"
-                  :permissionDecisionReason "Delimiter errors found and could not be auto-fixed"}}))))
+                (-> base-output
+                    (assoc-in [:hookSpecificOutput :permissionDecision] "deny")
+                    (assoc-in [:hookSpecificOutput :permissionDecisionReason] "Delimiter errors found and could not be auto-fixed"))))))
         (do
           (log-msg "  No delimiter errors, allowing write")
-          {:hookSpecificOutput
-           {:hookEventName "PreToolUse"
-            :permissionDecision "allow"}})))))
+          base-output)))))
 
 (defn process-pre-edit
   "Backup file before Edit operation"
-  [hook-input]
-  (let [tool-input (:tool_input hook-input)
-        file-path (:file_path tool-input)
-        session-id (:session_id hook-input)]
-
-    (log-msg "PreEdit:" file-path)
-
-    (if-not (clojure-file? file-path)
-      ;; Not a Clojure file, allow without backup
+  [{:keys [tool_input session_id]}]
+  (let [{:keys [file_path]} tool_input
+        base-output {:hookSpecificOutput
+                     {:hookEventName "PreToolUse"
+                      :permissionDecision "allow"}}]
+    (log-msg "PreEdit:" file_path)
+    (if-not (clojure-file? file_path)
       (do
         (log-msg "  Skipping non-Clojure file")
-        {:hookSpecificOutput
-         {:hookEventName "PreToolUse"
-          :permissionDecision "allow"}})
-
-      ;; Clojure file - create backup and allow
+        base-output)
       (try
-        (let [backup (backup-file file-path session-id)]
+        (let [backup (backup-file file_path session_id)]
           (log-msg "  Created backup:" backup)
-          {:hookSpecificOutput
-           {:hookEventName "PreToolUse"
-            :permissionDecision "allow"}})
+          base-output)
         (catch Exception e
-          ;; Backup failed, but still allow edit
           (log-msg "  Backup failed:" (.getMessage e))
           (binding [*out* *err*]
             (println "Warning: Failed to backup file:" (.getMessage e)))
-          {:hookSpecificOutput
-           {:hookEventName "PreToolUse"
-            :permissionDecision "allow"}})))))
+          base-output)))))
 
 (defn process-post-edit
   "Check edited file and restore from backup if unfixable delimiter errors"
