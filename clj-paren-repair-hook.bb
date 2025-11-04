@@ -115,7 +115,18 @@
   (when (.exists (io/file backup-path))
     (io/delete-file backup-path)))
 
-(defn process-pre-write
+(defmulti process-hook
+  (fn [hook-input]
+    [(:hook_event_name hook-input) (:tool_name hook-input)]))
+
+(defmethod process-hook :default
+  [hook-input]
+  (when (= (:hook_event_name hook-input) "PreToolUse")
+    {:hookSpecificOutput
+     {:hookEventName "PreToolUse"
+      :permissionDecision "allow"}}))
+
+(defmethod process-hook ["PreToolUse" "Write"]
   [{:keys [tool_input]}]
   (let [{:keys [file_path content]} tool_input
         base-output {:hookSpecificOutput
@@ -146,8 +157,7 @@
           (log-msg "  No delimiter errors, allowing write")
           base-output)))))
 
-(defn process-pre-edit
-  "Backup file before Edit operation"
+(defmethod process-hook ["PreToolUse" "Edit"]
   [{:keys [tool_input session_id]}]
   (let [{:keys [file_path]} tool_input
         base-output {:hookSpecificOutput
@@ -166,8 +176,7 @@
           (log-msg "  Backup failed:" (.getMessage e))
           base-output)))))
 
-(defn process-post-edit
-  "Check edited file and restore from backup if unfixable delimiter errors"
+(defmethod process-hook ["PostToolUse" "Edit"]
   [{:keys [tool_input tool_response session_id]}]
   (let [{:keys [file_path]} tool_input
         backup (backup-path file_path session_id)]
@@ -196,29 +205,6 @@
             (log-msg "  No delimiter errors, deleting backup")
             (delete-backup backup)
             nil))))))
-
-(defmulti process-hook
-  (fn [hook-input]
-    [(:hook_event_name hook-input) (:tool_name hook-input)]))
-
-(defmethod process-hook ["PreToolUse" "Write"]
-  [hook-input]
-  (process-pre-write hook-input))
-
-(defmethod process-hook ["PreToolUse" "Edit"]
-  [hook-input]
-  (process-pre-edit hook-input))
-
-(defmethod process-hook ["PostToolUse" "Edit"]
-  [hook-input]
-  (process-post-edit hook-input))
-
-(defmethod process-hook :default
-  [hook-input]
-  (when (= (:hook_event_name hook-input) "PreToolUse")
-    {:hookSpecificOutput
-     {:hookEventName "PreToolUse"
-      :permissionDecision "allow"}}))
 
 (defn -main []
   (try
