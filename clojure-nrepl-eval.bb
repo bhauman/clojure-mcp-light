@@ -1,8 +1,60 @@
 #!/usr/bin/env bb
 (require '[bencode.core :as b]
-         '[clojure.string :as str])
+         '[clojure.string :as str]
+         '[edamame.core :as e]
+         '[clojure.java.shell :as shell]
+         '[cheshire.core :as json])
 
+;; ============================================================================
+;; Delimiter Error Detection and Repair Functions
+;; ============================================================================
+
+(defn delimiter-error?
+  "Returns true if the string has a delimiter error specifically.
+   Checks both that it's an :edamame/error and has delimiter info."
+  [s]
+  (try
+    (e/parse-string-all s)
+    false ; No error = no delimiter error
+    (catch clojure.lang.ExceptionInfo ex
+      (let [data (ex-data ex)]
+        (and (= :edamame/error (:type data))
+             (contains? data :edamame/opened-delimiter))))))
+
+(defn parinfer-repair
+  "Attempts to repair delimiter errors using parinfer-rust.
+   Returns a map with:
+   - :success - boolean indicating if repair was successful
+   - :repaired-text - the repaired code (if successful)
+   - :error - error message (if unsuccessful)"
+  [s]
+  (let [result (shell/sh "parinfer-rust"
+                         "--mode" "indent"
+                         "--language" "clojure"
+                         "--output-format" "json"
+                         :in s)
+        exit-code (:exit result)]
+    (if (zero? exit-code)
+      (try
+        (json/parse-string (:out result) true)
+        (catch Exception _
+          {:success false}))
+      {:success false})))
+
+(defn fix-delimiters
+  "Takes a Clojure string and attempts to fix delimiter errors.
+   Returns the repaired string if successful, false otherwise.
+   If no delimiter errors exist, returns the original string."
+  [s]
+  (if (delimiter-error? s)
+    (let [{:keys [text success]} (parinfer-repair s)]
+      (when (and success text (not (delimiter-error? text)))
+        text))
+    s))
+
+;; ============================================================================
 ;; nREPL client implementation
+;; ============================================================================
 
 (defn bytes->str [x]
   (if (bytes? x) (String. (bytes x))
@@ -43,14 +95,15 @@
   :vals is a vector with eval results from all the top-level
   forms in the :expr. See the README for an example."
   [{:keys [host port expr]}]
-  (let [s (java.net.Socket. (or host "localhost") (coerce-long port))
+  (let [fixed-expr (or (fix-delimiters expr) expr)
+        s (java.net.Socket. (or host "localhost") (coerce-long port))
         out (.getOutputStream s)
         in (java.io.PushbackInputStream. (.getInputStream s))
         id (next-id)
         _ (b/write-bencode out {"op" "clone" "id" id})
         {session :new-session} (read-msg (b/read-bencode in))
         id (next-id)
-        _ (b/write-bencode out {"op" "eval" "code" expr "id" id "session" session})]
+        _ (b/write-bencode out {"op" "eval" "code" fixed-expr "id" id "session" session})]
     (loop [m {:vals [] :responses []}]
       (let [{:keys [status out value err] :as resp} (read-reply in session id)]
         (when out
@@ -93,7 +146,8 @@
   "Evaluate expression with timeout support and interrupt handling.
   If timeout-ms is exceeded, sends an interrupt to the nREPL server."
   [{:keys [host port expr timeout-ms] :or {timeout-ms 120000}}]
-  (let [s (java.net.Socket. (or host "localhost") (coerce-long port))
+  (let [fixed-expr (or (fix-delimiters expr) expr)
+        s (java.net.Socket. (or host "localhost") (coerce-long port))
         out (.getOutputStream s)
         in (java.io.PushbackInputStream. (.getInputStream s))
         clone-id (next-id)
@@ -102,7 +156,7 @@
         eval-id (next-id)
         deadline (+ (now-ms) timeout-ms)
         _ (b/write-bencode out {"op" "eval"
-                                "code" expr
+                                "code" fixed-expr
                                 "id" eval-id
                                 "session" session})]
     (loop [m {:vals [] :responses [] :interrupted false}]
