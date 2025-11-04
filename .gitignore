@@ -5,6 +5,9 @@ hook-logs/
 .clj-kondo/
 .lsp/
 
+# ClojureMCP config
+.clojure-mcp/
+
 # Temporary files
 *~
 \#*\#

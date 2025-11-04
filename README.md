@@ -91,6 +91,20 @@ Clojure-mcp-light provides automatic detection and fixing of delimiter errors (m
 
    See [settings_example/settings.local.json](settings_example/settings.local.json) for a complete example.
 
+## Using with ClojureMCP
+
+This project works well with [ClojureMCP](https://github.com/bhauman/clojure-mcp) for REPL integration. You can configure ClojureMCP to only enable the eval tool, avoiding conflicts with the delimiter fixing hooks.
+
+Create a `.clojure-mcp/config.edn` file in your project:
+
+```clojure
+{:enabled-tools [:clojure_eval]}
+```
+
+This ensures that ClojureMCP only provides the REPL evaluation functionality while the hooks handle delimiter fixing.
+
+See [settings_example/clojure-mcp-config.edn](settings_example/clojure-mcp-config.edn) for an example configuration.
+
 ## How It Works
 
 The system uses Claude Code's hook mechanism to intercept file operations:
