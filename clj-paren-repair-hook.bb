@@ -162,48 +162,34 @@
           base-output)
         (catch Exception e
           (log-msg "  Backup failed:" (.getMessage e))
-          (binding [*out* *err*]
-            (println "Warning: Failed to backup file:" (.getMessage e)))
           base-output)))))
 
 (defn process-post-edit
   "Check edited file and restore from backup if unfixable delimiter errors"
-  [hook-input]
-  (let [tool-input (:tool_input hook-input)
-        tool-response (:tool_response hook-input)
-        file-path (:file_path tool-input)
-        session-id (:session_id hook-input)
-        backup (backup-path file-path session-id)]
-
-    (log-msg "PostEdit:" file-path)
-
-    ;; PostToolUse only fires on success, so if we're here, the edit succeeded
-    (when (and (clojure-file? file-path)
-               tool-response)
-      (let [file-content (slurp file-path)]
+  [{:keys [tool_input tool_response session_id]}]
+  (let [{:keys [file_path]} tool_input
+        backup (backup-path file_path session_id)]
+    (log-msg "PostEdit:" file_path)
+    (when (and (clojure-file? file_path) tool_response)
+      (let [file-content (slurp file_path)]
         (if (delimiter-error? file-content)
-          ;; Has delimiter error - try to fix
           (do
             (log-msg "  Delimiter error detected, attempting fix")
             (if-let [fixed-content (fix-delimiters file-content)]
-              ;; Successfully fixed
               (do
                 (log-msg "  Fix successful, applying fix and deleting backup")
-                (spit file-path fixed-content)
+                (spit file_path fixed-content)
                 (delete-backup backup)
                 (binding [*out* *err*]
-                  (println "Auto-fixed delimiter errors in" file-path)))
-              ;; Could not fix - restore backup
+                  (println "Auto-fixed delimiter errors in" file_path)))
               (do
                 (log-msg "  Fix failed, restoring from backup:" backup)
-                (restore-file file-path backup)
+                (restore-file file_path backup)
                 (binding [*out* *err*]
-                  (println "Warning: Delimiter errors could not be fixed, restored from backup:" file-path)))))
-          ;; No delimiter error - just cleanup backup
+                  (println "Warning: Delimiter errors could not be fixed, restored from backup:" file_path)))))
           (do
             (log-msg "  No delimiter errors, deleting backup")
             (delete-backup backup)))))
-
     nil))
 
 (defn process-hook
