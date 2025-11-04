@@ -11,3 +11,6 @@ hook-logs/
 # Temporary files
 *~
 \#*\#
+
+# nREPL port file
+.nrepl-port
