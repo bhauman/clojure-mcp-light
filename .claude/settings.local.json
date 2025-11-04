@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/bruce/workspace/llempty/clojure-light/delimiter-hook.bb"
+            "command": "/Users/bruce/workspace/llempty/clojure-light/clj-paren-repair-hook.bb"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/bruce/workspace/llempty/clojure-light/delimiter-hook.bb"
+            "command": "/Users/bruce/workspace/llempty/clojure-light/clj-paren-repair-hook.bb"
           }
         ]
       }
