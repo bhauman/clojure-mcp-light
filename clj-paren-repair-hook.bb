@@ -10,7 +10,7 @@
 ;; Logging Configuration
 ;; ============================================================================
 
-(def ^:dynamic *enable-logging* true)
+(def ^:dynamic *enable-logging* false)
 (def ^:dynamic *log-file* "hook-logs/clj-paren-repair-hook.log")
 
 (defn log-msg
