@@ -1,67 +1,9 @@
-#!/usr/bin/env bb
-
-;; ==============================================================================
-;; NOTE: This is a legacy standalone script maintained for backwards compatibility.
-;;
-;; RECOMMENDED: Install via bbin for easier updates and global access:
-;;   bbin install .
-;;
-;; After installation, use the `clojure-mcp-light` command instead of this script.
-;; ==============================================================================
-
-(require '[bencode.core :as b]
-         '[clojure.string :as str]
-         '[edamame.core :as e]
-         '[clojure.java.shell :as shell]
-         '[cheshire.core :as json]
-         '[clojure.tools.cli :refer [parse-opts]])
-
-;; ============================================================================
-;; Delimiter Error Detection and Repair Functions
-;; ============================================================================
-
-(defn delimiter-error?
-  "Returns true if the string has a delimiter error specifically.
-   Checks both that it's an :edamame/error and has delimiter info."
-  [s]
-  (try
-    (e/parse-string-all s)
-    false ; No error = no delimiter error
-    (catch clojure.lang.ExceptionInfo ex
-      (let [data (ex-data ex)]
-        (and (= :edamame/error (:type data))
-             (contains? data :edamame/opened-delimiter))))))
-
-(defn parinfer-repair
-  "Attempts to repair delimiter errors using parinfer-rust.
-   Returns a map with:
-   - :success - boolean indicating if repair was successful
-   - :repaired-text - the repaired code (if successful)
-   - :error - error message (if unsuccessful)"
-  [s]
-  (let [result (shell/sh "parinfer-rust"
-                         "--mode" "indent"
-                         "--language" "clojure"
-                         "--output-format" "json"
-                         :in s)
-        exit-code (:exit result)]
-    (if (zero? exit-code)
-      (try
-        (json/parse-string (:out result) true)
-        (catch Exception _
-          {:success false}))
-      {:success false})))
-
-(defn fix-delimiters
-  "Takes a Clojure string and attempts to fix delimiter errors.
-   Returns the repaired string if successful, false otherwise.
-   If no delimiter errors exist, returns the original string."
-  [s]
-  (if (delimiter-error? s)
-    (let [{:keys [text success]} (parinfer-repair s)]
-      (when (and success text (not (delimiter-error? text)))
-        text))
-    s))
+(ns clojure-mcp-light.nrepl-eval
+  "nREPL client implementation with automatic delimiter repair and timeout handling"
+  (:require [bencode.core :as b]
+            [clojure.string :as str]
+            [clojure.tools.cli :refer [parse-opts]]
+            [clojure-mcp-light.delimiter-repair :refer [fix-delimiters]]))
 
 ;; ============================================================================
 ;; nREPL client implementation
@@ -264,9 +206,9 @@
 
 (defn usage [options-summary]
   (str/join \newline
-            ["clojure-nrepl-eval - Evaluate Clojure code via nREPL"
+            ["clojure-mcp-light - Evaluate Clojure code via nREPL"
              ""
-             "Usage: clojure-nrepl-eval [OPTIONS] CODE"
+             "Usage: clojure-mcp-light [OPTIONS] CODE"
              ""
              "Options:"
              options-summary
@@ -276,9 +218,9 @@
              "  NREPL_HOST    Default nREPL host"
              ""
              "Examples:"
-             "  clojure-nrepl-eval \"(+ 1 2 3)\""
-             "  clojure-nrepl-eval --port 7888 \"(println \\\"Hello\\\")\""
-             "  clojure-nrepl-eval --timeout 5000 \"(Thread/sleep 10000)\""]))
+             "  clojure-mcp-light \"(+ 1 2 3)\""
+             "  clojure-mcp-light --port 7888 \"(println \\\"Hello\\\")\""
+             "  clojure-mcp-light --timeout 5000 \"(Thread/sleep 10000)\""]))
 
 (defn error-msg [errors]
   (str "Error parsing command line:\n\n"
@@ -334,7 +276,3 @@
               (println "Error: No nREPL port found")
               (println "Provide port via --port, NREPL_PORT env var, or .nrepl-port file"))
             (System/exit 1)))))))
-
-(when (= *file* (System/getProperty "babashka.file"))
-  (apply -main *command-line-args*))
-

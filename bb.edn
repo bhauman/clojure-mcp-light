@@ -1,0 +1,23 @@
+{:paths ["src"]
+
+ :deps {borkdude/edamame {:mvn/version "1.4.25"}
+        cheshire/cheshire {:mvn/version "5.13.0"}
+        org.clojure/tools.cli {:mvn/version "1.1.230"}
+        nrepl/bencode {:mvn/version "1.2.0"}}
+
+ :tasks
+ {test {:doc "Run tests"
+        :extra-paths ["test"]
+        :task (clojure
+                (require 'clojure.test)
+                (require 'clojure-mcp-light.delimiter-repair-test)
+                (require 'clojure-mcp-light.hook-test)
+                (require 'clojure-mcp-light.nrepl-eval-test)
+                (let [result (clojure.test/run-tests 'clojure-mcp-light.delimiter-repair-test
+                                                     'clojure-mcp-light.hook-test
+                                                     'clojure-mcp-light.nrepl-eval-test)]
+                  (when (pos? (+ (:fail result) (:error result)))
+                    (System/exit 1))))}}
+
+ :bbin/bin {clojure-mcp-light {:main-opts ["-m" "clojure-mcp-light.nrepl-eval"]}
+            clojure-mcp-light-hook {:main-opts ["-m" "clojure-mcp-light.hook"]}}}

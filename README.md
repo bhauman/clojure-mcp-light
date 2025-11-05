@@ -29,9 +29,9 @@ If this minimal approach proves sufficient, it demonstrates that Clojure develop
 
 Clojure-mcp-light provides two main tools:
 
-1. **Automatic delimiter fixing hooks** - Detects and fixes delimiter errors (mismatched brackets, parentheses, braces) when working with Clojure files in Claude Code. The hook system intercepts file operations and transparently fixes delimiter issues before they cause problems.
+1. **Automatic delimiter fixing hooks** (`clojure-mcp-light-hook`) - Detects and fixes delimiter errors (mismatched brackets, parentheses, braces) when working with Clojure files in Claude Code. The hook system intercepts file operations and transparently fixes delimiter issues before they cause problems.
 
-2. **clojure-nrepl-eval.bb** - A standalone Babashka script for evaluating Clojure code via nREPL with automatic delimiter repair, timeout handling, and formatted output.
+2. **nREPL evaluation tool** (`clojure-mcp-light`) - A command-line tool for evaluating Clojure code via nREPL with automatic delimiter repair, timeout handling, and formatted output.
 
 ## Features
 
@@ -44,10 +44,78 @@ Clojure-mcp-light provides two main tools:
 ## Requirements
 
 - [Babashka](https://github.com/babashka/babashka) - Fast-starting Clojure scripting environment
+- [bbin](https://github.com/babashka/bbin) - Babashka package manager (recommended for installation)
 - [parinfer-rust](https://github.com/eraserhd/parinfer-rust) - Delimiter inference and fixing
 - [Claude Code](https://docs.claude.com/en/docs/claude-code) - The Claude CLI tool
 
-## Setup
+## Installation
+
+### Recommended: Install via bbin
+
+The easiest way to install clojure-mcp-light is using [bbin](https://github.com/babashka/bbin), the Babashka package manager.
+
+1. Install bbin if you haven't already:
+   ```bash
+   brew install bbin  # macOS
+   # or
+   bash < <(curl -s https://raw.githubusercontent.com/babashka/bbin/main/bbin)
+   ```
+
+2. Install clojure-mcp-light:
+   ```bash
+   # From GitHub (once published)
+   bbin install io.github.yourusername/clojure-mcp-light
+
+   # Or from local checkout
+   git clone <repo-url> clojure-mcp-light
+   cd clojure-mcp-light
+   bbin install .
+   ```
+
+3. Install parinfer-rust (required dependency):
+   ```bash
+   # See https://github.com/eraserhd/parinfer-rust for installation
+   # Must be available on your PATH
+   ```
+
+4. Configure Claude Code hooks in your project's `.claude/settings.local.json`:
+   ```json
+   {
+     "hooks": {
+       "PreToolUse": [
+         {
+           "matcher": "Write|Edit",
+           "hooks": [
+             {
+               "type": "command",
+               "command": "/Users/yourname/.local/bin/clojure-mcp-light-hook"
+             }
+           ]
+         }
+       ],
+       "PostToolUse": [
+         {
+           "matcher": "Edit",
+           "hooks": [
+             {
+               "type": "command",
+               "command": "/Users/yourname/.local/bin/clojure-mcp-light-hook"
+             }
+           ]
+         }
+       ]
+     }
+   }
+   ```
+
+   Replace `/Users/yourname/.local/bin/` with your actual bbin installation directory (run `bbin bin` to find it).
+
+5. The `clojure-mcp-light` command is now available globally for nREPL evaluation:
+   ```bash
+   clojure-mcp-light "(+ 1 2 3)"
+   ```
+
+### Alternative: Manual Setup
 
 1. Clone this repository:
    ```bash
@@ -169,9 +237,11 @@ This will start an nREPL server and set up the `.nrepl-port` file automatically.
 
 This provides Claude with context about REPL evaluation, making it easier to work with your running Clojure environment.
 
-## clojure-nrepl-eval.bb - Standalone nREPL Evaluator
+## clojure-mcp-light - nREPL Evaluation Tool
 
-This project includes a standalone Babashka script for evaluating Clojure code via nREPL with automatic delimiter repair.
+The main command-line tool for evaluating Clojure code via nREPL with automatic delimiter repair.
+
+When installed via bbin, the command is available globally as `clojure-mcp-light`. For manual installation, use the `clojure-nrepl-eval.bb` script directly.
 
 ### Features
 
@@ -183,30 +253,40 @@ This project includes a standalone Babashka script for evaluating Clojure code v
 
 ### Usage
 
+**With bbin installation:**
+
 ```bash
 # Evaluate code (port auto-detected from .nrepl-port file or NREPL_PORT env)
-./clojure-nrepl-eval.bb "(+ 1 2 3)"
+clojure-mcp-light "(+ 1 2 3)"
 
 # Specify port explicitly
-./clojure-nrepl-eval.bb --port 7888 "(println \"Hello\")"
+clojure-mcp-light --port 7888 "(println \"Hello\")"
 
 # Use short flags
-./clojure-nrepl-eval.bb -p 7889 "(* 5 6)"
+clojure-mcp-light -p 7889 "(* 5 6)"
 
 # Set timeout (in milliseconds)
-./clojure-nrepl-eval.bb --timeout 5000 "(Thread/sleep 10000)"
+clojure-mcp-light --timeout 5000 "(Thread/sleep 10000)"
 
 # Show help
-./clojure-nrepl-eval.bb --help
+clojure-mcp-light --help
+```
+
+**With manual installation:**
+
+```bash
+# Same options, but use the script directly
+./clojure-nrepl-eval.bb "(+ 1 2 3)"
+./clojure-nrepl-eval.bb --port 7888 "(println \"Hello\")"
 ```
 
 ### Automatic Delimiter Repair
 
-The script automatically fixes missing or mismatched delimiters before evaluation:
+The tool automatically fixes missing or mismatched delimiters before evaluation:
 
 ```bash
 # This will be auto-fixed from "(+ 1 2 3" to "(+ 1 2 3)"
-./clojure-nrepl-eval.bb "(+ 1 2 3"
+clojure-mcp-light "(+ 1 2 3"
 # => 6
 ```
 
