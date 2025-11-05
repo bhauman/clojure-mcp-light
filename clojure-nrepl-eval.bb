@@ -6,7 +6,7 @@
 ;; RECOMMENDED: Install via bbin for easier updates and global access:
 ;;   bbin install .
 ;;
-;; After installation, use the `clojure-mcp-light` command instead of this script.
+;; After installation, use the `clj-nrepl-eval` command instead of this script.
 ;; ==============================================================================
 
 (require '[bencode.core :as b]

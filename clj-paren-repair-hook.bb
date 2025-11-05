@@ -7,7 +7,7 @@
 ;;   bbin install .
 ;;
 ;; After installation, configure your hooks to use the globally installed
-;; `clojure-mcp-light-hook` command (typically in ~/.local/bin/).
+;; `clj-paren-repair-claude-hook` command (typically in ~/.local/bin/).
 ;; ==============================================================================
 
 (require '[edamame.core :as e]

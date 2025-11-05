@@ -29,9 +29,9 @@ If this minimal approach proves sufficient, it demonstrates that Clojure develop
 
 Clojure-mcp-light provides two main tools:
 
-1. **Automatic delimiter fixing hooks** (`clojure-mcp-light-hook`) - Detects and fixes delimiter errors (mismatched brackets, parentheses, braces) when working with Clojure files in Claude Code. The hook system intercepts file operations and transparently fixes delimiter issues before they cause problems.
+1. **Automatic delimiter fixing hooks** (`clj-paren-repair-claude-hook`) - Detects and fixes delimiter errors (mismatched brackets, parentheses, braces) when working with Clojure files in Claude Code. The hook system intercepts file operations and transparently fixes delimiter issues before they cause problems.
 
-2. **nREPL evaluation tool** (`clojure-mcp-light`) - A command-line tool for evaluating Clojure code via nREPL with automatic delimiter repair, timeout handling, and formatted output.
+2. **nREPL evaluation tool** (`clj-nrepl-eval`) - A command-line tool for evaluating Clojure code via nREPL with automatic delimiter repair, timeout handling, and formatted output.
 
 ## Features
 
@@ -88,7 +88,7 @@ The easiest way to install clojure-mcp-light is using [bbin](https://github.com/
            "hooks": [
              {
                "type": "command",
-               "command": "/Users/yourname/.local/bin/clojure-mcp-light-hook"
+               "command": "/Users/yourname/.local/bin/clj-paren-repair-claude-hook"
              }
            ]
          }
@@ -99,7 +99,7 @@ The easiest way to install clojure-mcp-light is using [bbin](https://github.com/
            "hooks": [
              {
                "type": "command",
-               "command": "/Users/yourname/.local/bin/clojure-mcp-light-hook"
+               "command": "/Users/yourname/.local/bin/clj-paren-repair-claude-hook"
              }
            ]
          }
@@ -110,9 +110,9 @@ The easiest way to install clojure-mcp-light is using [bbin](https://github.com/
 
    Replace `/Users/yourname/.local/bin/` with your actual bbin installation directory (run `bbin bin` to find it).
 
-5. The `clojure-mcp-light` command is now available globally for nREPL evaluation:
+5. The `clj-nrepl-eval` command is now available globally for nREPL evaluation:
    ```bash
-   clojure-mcp-light "(+ 1 2 3)"
+   clj-nrepl-eval "(+ 1 2 3)"
    ```
 
 ### Alternative: Manual Setup
@@ -237,11 +237,11 @@ This will start an nREPL server and set up the `.nrepl-port` file automatically.
 
 This provides Claude with context about REPL evaluation, making it easier to work with your running Clojure environment.
 
-## clojure-mcp-light - nREPL Evaluation Tool
+## clj-nrepl-eval - nREPL Evaluation Tool
 
 The main command-line tool for evaluating Clojure code via nREPL with automatic delimiter repair.
 
-When installed via bbin, the command is available globally as `clojure-mcp-light`. For manual installation, use the `clojure-nrepl-eval.bb` script directly.
+When installed via bbin, the command is available globally as `clj-nrepl-eval`. For manual installation, use the `clojure-nrepl-eval.bb` script directly.
 
 ### Features
 
@@ -257,19 +257,19 @@ When installed via bbin, the command is available globally as `clojure-mcp-light
 
 ```bash
 # Evaluate code (port auto-detected from .nrepl-port file or NREPL_PORT env)
-clojure-mcp-light "(+ 1 2 3)"
+clj-nrepl-eval "(+ 1 2 3)"
 
 # Specify port explicitly
-clojure-mcp-light --port 7888 "(println \"Hello\")"
+clj-nrepl-eval --port 7888 "(println \"Hello\")"
 
 # Use short flags
-clojure-mcp-light -p 7889 "(* 5 6)"
+clj-nrepl-eval -p 7889 "(* 5 6)"
 
 # Set timeout (in milliseconds)
-clojure-mcp-light --timeout 5000 "(Thread/sleep 10000)"
+clj-nrepl-eval --timeout 5000 "(Thread/sleep 10000)"
 
 # Show help
-clojure-mcp-light --help
+clj-nrepl-eval --help
 ```
 
 **With manual installation:**
@@ -286,7 +286,7 @@ The tool automatically fixes missing or mismatched delimiters before evaluation:
 
 ```bash
 # This will be auto-fixed from "(+ 1 2 3" to "(+ 1 2 3)"
-clojure-mcp-light "(+ 1 2 3"
+clj-nrepl-eval "(+ 1 2 3"
 # => 6
 ```
 

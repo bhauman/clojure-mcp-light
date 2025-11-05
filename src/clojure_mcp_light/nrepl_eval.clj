@@ -206,9 +206,9 @@
 
 (defn usage [options-summary]
   (str/join \newline
-            ["clojure-mcp-light - Evaluate Clojure code via nREPL"
+            ["clj-nrepl-eval - Evaluate Clojure code via nREPL"
              ""
-             "Usage: clojure-mcp-light [OPTIONS] CODE"
+             "Usage: clj-nrepl-eval [OPTIONS] CODE"
              ""
              "Options:"
              options-summary
@@ -218,9 +218,9 @@
              "  NREPL_HOST    Default nREPL host"
              ""
              "Examples:"
-             "  clojure-mcp-light \"(+ 1 2 3)\""
-             "  clojure-mcp-light --port 7888 \"(println \\\"Hello\\\")\""
-             "  clojure-mcp-light --timeout 5000 \"(Thread/sleep 10000)\""]))
+             "  clj-nrepl-eval \"(+ 1 2 3)\""
+             "  clj-nrepl-eval --port 7888 \"(println \\\"Hello\\\")\""
+             "  clj-nrepl-eval --timeout 5000 \"(Thread/sleep 10000)\""]))
 
 (defn error-msg [errors]
   (str "Error parsing command line:\n\n"

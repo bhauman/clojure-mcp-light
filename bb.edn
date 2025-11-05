@@ -19,5 +19,5 @@
                   (when (pos? (+ (:fail result) (:error result)))
                     (System/exit 1))))}}
 
- :bbin/bin {clojure-mcp-light {:main-opts ["-m" "clojure-mcp-light.nrepl-eval"]}
-            clojure-mcp-light-hook {:main-opts ["-m" "clojure-mcp-light.hook"]}}}
+ :bbin/bin {clj-nrepl-eval {:main-opts ["-m" "clojure-mcp-light.nrepl-eval"]}
+            clj-paren-repair-claude-hook {:main-opts ["-m" "clojure-mcp-light.hook"]}}}
