@@ -71,7 +71,7 @@ Replace PORT_NUMBER with the actual port extracted from the output.
    - The port number the server is running on
    - The connection URL (e.g., `nrepl://localhost:PORT`)
    - The background process ID
-   - Note that `clojure-nrepl-eval.bb` can now auto-detect the port
+   - Note that `clj-nrepl-eval` can now auto-detect the port
 
 ## Example Output to User
 
@@ -83,7 +83,7 @@ URL: nrepl://localhost:54321
 Background process: a12345
 Port file: .nrepl-port
 
-You can now use ./clojure-nrepl-eval.bb to evaluate Clojure code.
+You can now use clj-nrepl-eval to evaluate Clojure code.
 ```
 
 ## Error Handling

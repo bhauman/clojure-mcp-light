@@ -3,10 +3,9 @@ description: Info on how to evaluate Clojure code via nREPL using clj-nrepl-eval
 ---
 
 When you need to evaluate Clojure code you can use the
-`clj-nrepl-eval` command (if installed via bbin) or the
-`clojure-nrepl-eval.bb` script to evaluate code against an nREPL server.
-This means the state of the REPL session will persist between
-evaluations.
+`clj-nrepl-eval` command (if installed via bbin) to evaluate code
+against an nREPL server.  This means the state of the REPL session
+will persist between evaluations.
 
 You can require or load a file in one evaluation of the command and
 when you call the command again the namespace will still be available.
@@ -28,7 +27,7 @@ clj-nrepl-eval "<clojure-code>"
 
 **Without bbin (manual installation):**
 ```bash
-./clojure-nrepl-eval.bb "<clojure-code>"
+clj-nrepl-eval "<clojure-code>"
 ```
 
 ## Options
