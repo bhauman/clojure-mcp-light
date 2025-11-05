@@ -9,15 +9,15 @@
  {test {:doc "Run tests"
         :extra-paths ["test"]
         :task (clojure
-                (require 'clojure.test)
-                (require 'clojure-mcp-light.delimiter-repair-test)
-                (require 'clojure-mcp-light.hook-test)
-                (require 'clojure-mcp-light.nrepl-eval-test)
-                (let [result (clojure.test/run-tests 'clojure-mcp-light.delimiter-repair-test
-                                                     'clojure-mcp-light.hook-test
-                                                     'clojure-mcp-light.nrepl-eval-test)]
-                  (when (pos? (+ (:fail result) (:error result)))
-                    (System/exit 1))))}}
+               (require 'clojure.test)
+               (require 'clojure-mcp-light.delimiter-repair-test)
+               (require 'clojure-mcp-light.hook-test)
+               (require 'clojure-mcp-light.nrepl-eval-test)
+               (let [result (clojure.test/run-tests 'clojure-mcp-light.delimiter-repair-test
+                                                    'clojure-mcp-light.hook-test
+                                                    'clojure-mcp-light.nrepl-eval-test)]
+                 (when (pos? (+ (:fail result) (:error result)))
+                   (System/exit 1))))}}
 
- :bbin/bin {clj-nrepl-eval {:main-opts ["-m" "clojure-mcp-light.nrepl-eval"]}
-            clj-paren-repair-claude-hook {:main-opts ["-m" "clojure-mcp-light.hook"]}}}
+ :bbin/bin {clj-paren-repair-claude-hook {:main-opts ["-m" "clojure-mcp-light.hook"]}
+            clj-nrepl-eval {:main-opts ["-m" "clojure-mcp-light.nrepl-eval"]}}}

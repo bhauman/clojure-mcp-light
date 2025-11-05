@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/absolute/path/to/clojure-mcp-light/clj-paren-repair-hook.bb"
+            "command": "clj-paren-repair-claude-hook"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/absolute/path/to/clojure-mcp-light/clj-paren-repair-hook.bb"
+            "command": "clj-paren-repair-claude-hook"
           }
         ]
       }

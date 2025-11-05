@@ -4,6 +4,7 @@ hook-logs/
 # Clojure/LSP directories
 .clj-kondo/
 .lsp/
+.cpcache/
 
 # ClojureMCP config
 .clojure-mcp/

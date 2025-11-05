@@ -88,7 +88,7 @@ The easiest way to install clojure-mcp-light is using [bbin](https://github.com/
            "hooks": [
              {
                "type": "command",
-               "command": "/Users/yourname/.local/bin/clj-paren-repair-claude-hook"
+               "command": "clj-paren-repair-claude-hook"
              }
            ]
          }
@@ -99,7 +99,7 @@ The easiest way to install clojure-mcp-light is using [bbin](https://github.com/
            "hooks": [
              {
                "type": "command",
-               "command": "/Users/yourname/.local/bin/clj-paren-repair-claude-hook"
+               "command": "clj-paren-repair-claude-hook"
              }
            ]
          }
@@ -108,11 +108,16 @@ The easiest way to install clojure-mcp-light is using [bbin](https://github.com/
    }
    ```
 
-   Replace `/Users/yourname/.local/bin/` with your actual bbin installation directory (run `bbin bin` to find it).
+   See [settings_example/settings.local.json](settings_example/settings.local.json) for a complete example.
 
-5. The `clj-nrepl-eval` command is now available globally for nREPL evaluation:
+5. Both commands are now available globally:
    ```bash
+   # nREPL evaluation
    clj-nrepl-eval "(+ 1 2 3)"
+
+   # Hook is automatically used by Claude Code (configured above)
+   # Can also be tested manually:
+   echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | clj-paren-repair-claude-hook
    ```
 
 ### Alternative: Manual Setup
@@ -203,7 +208,7 @@ This project includes custom slash commands for Claude Code to streamline your C
 ### Available Commands
 
 - **/start-nrepl** - Automatically starts an nREPL server in the background, detects the port, and creates a `.nrepl-port` file
-- **/clojure-eval** - Provides information about using `clojure-nrepl-eval.bb` for REPL-driven development
+- **/clojure-eval** - Provides information about using `clj-nrepl-eval` for REPL-driven development
 
 ### Setup
 

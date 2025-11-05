@@ -1,14 +1,15 @@
 ---
-description: Info on how to evaluate Clojure code via nREPL using clojure-nrepl-eval.bb
+description: Info on how to evaluate Clojure code via nREPL using clj-nrepl-eval
 ---
 
 When you need to evaluate Clojure code you can use the
-`clojure-nrepl-eval.bb` script to evalute code against an nREPL server.
+`clj-nrepl-eval` command (if installed via bbin) or the
+`clojure-nrepl-eval.bb` script to evaluate code against an nREPL server.
 This means the state of the REPL session will persist between
 evaluations.
 
-You can require or load a file in one evaluattion of the script and
-when you call the script again the namespace will still be available.
+You can require or load a file in one evaluation of the command and
+when you call the command again the namespace will still be available.
 
 ## Example uses
 
@@ -20,6 +21,12 @@ Whenever you require a namespace always use the `:reload` key.
 
 The following evaluates Clojure code via an nREPL connection.
 
+**With bbin installation:**
+```bash
+clj-nrepl-eval "<clojure-code>"
+```
+
+**Without bbin (manual installation):**
 ```bash
 ./clojure-nrepl-eval.bb "<clojure-code>"
 ```
@@ -35,22 +42,22 @@ The following evaluates Clojure code via an nREPL connection.
 
 **Basic evaluation (auto-detects port):**
 ```bash
-./clojure-nrepl-eval.bb "(+ 1 2 3)"
+clj-nrepl-eval "(+ 1 2 3)"
 ```
 
 **With specific port:**
 ```bash
-./clojure-nrepl-eval.bb --port 7888 "(println \"Hello\")"
+clj-nrepl-eval --port 7888 "(println \"Hello\")"
 ```
 
 **With timeout:**
 ```bash
-./clojure-nrepl-eval.bb --timeout 5000 "(Thread/sleep 10000)"
+clj-nrepl-eval --timeout 5000 "(Thread/sleep 10000)"
 ```
 
 **Multiple expressions:**
 ```bash
-./clojure-nrepl-eval.bb "(def x 10) (* x 2) (+ x 5)"
+clj-nrepl-eval "(def x 10) (* x 2) (+ x 5)"
 ```
 
 ## Features
