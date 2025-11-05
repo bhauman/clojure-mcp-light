@@ -1,6 +1,6 @@
 # clojure-mcp-light
 
-> **⚠️ Experimental**: This project is in early stages. We're experimenting with what works to bring better Clojure support to Claude Code.
+> **⚠️ Experimental**: This project is in early stages.
 
 Automatic delimiter fixing for Clojure files in Claude Code using hooks and parinfer, plus a standalone nREPL evaluation tool.
 
@@ -19,6 +19,8 @@ This project explores **minimal tooling** for Clojure development with Claude Co
 **How is this different from clojure-mcp?**
 
 [ClojureMCP](https://github.com/bhauman/clojure-mcp) is a full coding assistant (minus the LLM loop) with comprehensive Clojure tooling. This project takes the opposite approach: find the minimum viable tooling needed to get decent Clojure support while leveraging Claude Code's native capabilities.
+
+clojure-mcp-light is **NOT** an MCP server but instead provides cli tools that you can directly use in Claude Code.
 
 If this minimal approach proves sufficient, it demonstrates that Clojure developers can achieve good results with just:
 - Smart delimiter fixing (parinfer)
@@ -65,8 +67,8 @@ Clojure-mcp-light provides two main tools:
 3. Install clojure-mcp-light:
    ```bash
    # From GitHub
-   bbin install <repo-url>
-   bbin install <repo-url> --as clj-nrepl-eval --main-opts '["-m"  "clojure-mcp-light.nrepl-eval"]'
+   bbin install https://github.com/bhauman/clojure-mcp-light
+   bbin install https://github.com/bhauman/clojure-mcp-light --as clj-nrepl-eval --main-opts '["-m"  "clojure-mcp-light.nrepl-eval"]'
 
    # Or from local checkout
    bbin install .
