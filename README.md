@@ -1,12 +1,13 @@
 # clojure-mcp-light
 
-> **⚠️ Experimental**: This project is in early stages. I am still
-> using this heavily so that I can assess how well it works. Expect
-> changes including a change to the name of the repo.
+> **This is NOT an MCP server.**
 
-**This is not an MCP server.** 
+**TL;DR:**
+- Two CLI tools: parinfer hook + nREPL evaluator
+- Integrates via Claude Code hooks for clean diffs
+- Minimal approach: just fix delimiters + REPL eval
 
-The goal of this project is to provide a ClojureMCP _experience_ to
+The goal of this project is to provide a ClojureMCP-like experience to
 Claude Code minimally with a couple of simple cli tools.
 
 These tools together provide a better Clojure development experience
@@ -25,12 +26,23 @@ Since this relies on hooks that hook into the default Claude Code
 editing tools the UI is unaffected by integrating this into your
 Claude Code setup.
 
+These scripts benefit from patterns developed and validated in ClojureMCP.
+
+This can be used alongside ClojureMCP as there are no hard
+incompatibilities, in fact, you can install these hooks at the root
+level scope of your Claude Code config to allow you to edit Clojure
+files without error.
+
+> **⚠️ Experimental**: This project is in early stages. I am still
+> using this heavily so that I can assess how well it works. Expect
+> changes including a change to the name of the repo.
+
 ## Philosophy
 
 This project explores **minimal tooling** for Clojure development with
-Claude Code. Rather than building a comprehensive coding assistant,
-we're testing whether smart parinfer application combined with REPL
-evaluation is sufficient for productive Clojure development.
+Claude Code. Rather than using a comprehensive MCP server, we're
+testing whether smart parinfer application combined with a robust REPL
+evaluation cli script is sufficient for productive Clojure development.
 
 **Why minimal tooling?**
 
@@ -48,11 +60,9 @@ tooling. This project takes the opposite approach: find the minimum
 viable tooling needed to get decent Clojure support while leveraging
 Claude Code's native capabilities.
 
-clojure-mcp-light is **NOT** an MCP server but instead provides cli tools that you can directly use in Claude Code.
-
 If this minimal approach proves sufficient, it demonstrates that Clojure developers can achieve good results with just:
 - Smart delimiter fixing (parinfer)
-- REPL evaluation
+- REPL evaluation on the cli
 - Claude Code's built-in tools
 
 ## Overview
