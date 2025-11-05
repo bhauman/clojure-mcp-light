@@ -67,6 +67,35 @@
   (when (.exists (io/file backup-path))
     (io/delete-file backup-path)))
 
+(defn process-pre-write
+  "Process content before write operation.
+  Returns fixed content if Clojure file has delimiter errors, nil otherwise."
+  [file-path content]
+  (when (and (clojure-file? file-path) (delimiter-error? content))
+    (fix-delimiters content)))
+
+(defn process-pre-edit
+  "Process file before edit operation.
+  Creates a backup of Clojure files, returns backup path if created."
+  [file-path session-id]
+  (when (clojure-file? file-path)
+    (backup-file file-path session-id)))
+
+(defn process-post-edit
+  "Process file after edit operation.
+  Compares edited file with backup, fixes delimiters if content changed,
+  and cleans up backup file."
+  [file-path session-id]
+  (when (clojure-file? file-path)
+    (let [backup-file (backup-path file-path session-id)]
+      (try
+        (let [backup-content (try (slurp backup-file) (catch Exception _ nil))
+              file-content (slurp file-path)]
+          (when (not= backup-content file-content)
+            (process-pre-write file-path file-content)))
+        (finally
+          (delete-backup backup-file))))))
+
 (defmulti process-hook
   (fn [hook-input]
     [(:hook_event_name hook-input) (:tool_name hook-input)]))
