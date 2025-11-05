@@ -1,12 +1,36 @@
 # clojure-mcp-light
 
-> **⚠️ Experimental**: This project is in early stages.
+> **⚠️ Experimental**: This project is in early stages. I am still
+> using this heavily so that I can assess how well it works. Expect
+> changes including a change to the name of the repo.
 
-Automatic delimiter fixing for Clojure files in Claude Code using hooks and parinfer, plus a standalone nREPL evaluation tool.
+**This is not an MCP server.** 
+
+The goal of this project is to provide a ClojureMCP _experience_ to
+Claude Code minimally with a couple of simple cli tools.
+
+These tools together provide a better Clojure development experience
+with Claude Code.
+
+They help solve the two main problems:
+
+* faulty delimiters in LLM output
+* connecting to a stateful Clojure nREPL
+
+But the main reason you may want to try this approach is to have
+**clean code diffs presented by Claude Code when a file write or edit
+takes place**.
+
+Since this relies on hooks that hook into the default Claude Code
+editing tools the UI is unaffected by integrating this into your
+Claude Code setup.
 
 ## Philosophy
 
-This project explores **minimal tooling** for Clojure development with Claude Code. Rather than building a comprehensive coding assistant, we're testing whether smart parinfer application combined with REPL evaluation is sufficient for productive Clojure development.
+This project explores **minimal tooling** for Clojure development with
+Claude Code. Rather than building a comprehensive coding assistant,
+we're testing whether smart parinfer application combined with REPL
+evaluation is sufficient for productive Clojure development.
 
 **Why minimal tooling?**
 
@@ -18,7 +42,11 @@ This project explores **minimal tooling** for Clojure development with Claude Co
 
 **How is this different from clojure-mcp?**
 
-[ClojureMCP](https://github.com/bhauman/clojure-mcp) is a full coding assistant (minus the LLM loop) with comprehensive Clojure tooling. This project takes the opposite approach: find the minimum viable tooling needed to get decent Clojure support while leveraging Claude Code's native capabilities.
+[ClojureMCP](https://github.com/bhauman/clojure-mcp) is a full coding
+assistant (minus the LLM loop) with comprehensive Clojure
+tooling. This project takes the opposite approach: find the minimum
+viable tooling needed to get decent Clojure support while leveraging
+Claude Code's native capabilities.
 
 clojure-mcp-light is **NOT** an MCP server but instead provides cli tools that you can directly use in Claude Code.
 
