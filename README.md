@@ -158,15 +158,9 @@ Clojure-mcp-light provides two main tools:
    echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | clj-paren-repair-claude-hook
    ```
 
-## Legacy Scripts
-
-For users who prefer not to use bbin, standalone Babashka scripts are available:
-- `clj-paren-repair-hook.bb` - Hook script
-- `clojure-nrepl-eval.bb` - nREPL evaluation script
-
-These can be run directly with `bb` or `./script-name.bb` after making them executable. However, **bbin installation is strongly recommended** for easier updates and global access to commands.
-
 ## Slash Commands
+
+> Experimental
 
 This project includes custom slash commands for Claude Code to streamline your Clojure workflow:
 
@@ -347,6 +341,29 @@ After (automatically fixed):
 ```
 
 The missing `)` is automatically added by parinfer, and Claude receives feedback about the fix.
+
+## Using with ClojureMCP
+
+These integrations don't conflict with a
+[ClojureMCP](https://github.com/bhauman/clojure-mcp) integration. In
+fact, if you would rather have ClojureMCP handle your Clojure
+evaluation needs you can setup ClojureMCP to only expose its
+`:clojure_eval` tool.
+
+In your project directory place a `.clojure-mcp/config.edn` file:
+
+```clojure
+{:enable-tools [:clojure_eval]}
+```
+
+You can also hide the default ClojureMCP prompts and resources if you
+don't want them availble in Claude Code:
+
+```clojure
+{:enable-tools [:clojure_eval]
+ :enable-prompts []
+ :enable-resources []}
+```
 
 ## Contributing
 
