@@ -6,10 +6,14 @@
 
 (defn delimiter-error?
   "Returns true if the string has a delimiter error specifically.
-   Checks both that it's an :edamame/error and has delimiter info."
+   Checks both that it's an :edamame/error and has delimiter info.
+   Uses :all true to enable all standard Clojure reader features:
+   function literals, regex, quotes, syntax-quote, deref, var, etc.
+   Also enables :read-cond :allow to support reader conditionals."
   [s]
   (try
-    (e/parse-string-all s)
+    (e/parse-string-all s {:all true
+                           :read-cond :allow})
     false ; No error = no delimiter error
     (catch clojure.lang.ExceptionInfo ex
       (let [data (ex-data ex)]
