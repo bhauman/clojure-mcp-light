@@ -29,11 +29,14 @@
 
 (defn read-reply [in session id]
   (loop []
-    (let [msg (read-msg (b/read-bencode in))]
-      (if (and (= (:session msg) session)
-               (= (:id msg) id))
-        msg
-        (recur)))))
+    (if-let [raw (try (b/read-bencode in)
+                      (catch Exception _ nil))]
+      (let [msg (read-msg raw)]
+        (if (and (= (:session msg) session)
+                 (= (:id msg) id))
+          msg
+          (recur)))
+      {:status ["eof"]})))
 
 (defn coerce-long [x]
   (if (string? x) (Long/parseLong x) x))
@@ -86,6 +89,18 @@
 
 ;; Session validation utilities
 
+(defn validate-session-on-socket
+  "Validate session ID on an open socket by checking ls-sessions.
+   Returns the session-id if valid, nil otherwise."
+  [out in session-id]
+  (when session-id
+    (let [id (next-id)
+          _ (write-bencode-msg out {"op" "ls-sessions" "id" id})
+          response (read-msg (b/read-bencode in))
+          active-sessions (:sessions response)]
+      (when (some #{session-id} active-sessions)
+        session-id))))
+
 (defn get-active-sessions
   "Get list of active session IDs from nREPL server.
    Returns nil if unable to connect or on error."
@@ -132,10 +147,13 @@
             in (java.io.PushbackInputStream. (.getInputStream s))
             ;; Try to reuse existing session or create new one
             existing-session (slurp-nrepl-session)
-            validated-session (validate-session existing-session host port)
+            ;; Validate session on same socket
+            validated-session (validate-session-on-socket out in existing-session)
             session (if validated-session
                       validated-session
-                      (let [id (next-id)
+                      (let [_ (when (and existing-session (not validated-session))
+                                (delete-nrepl-session))
+                            id (next-id)
                             _ (write-bencode-msg out {"op" "clone" "id" id})
                             {new-session :new-session} (read-msg (b/read-bencode in))]
                         (spit-nrepl-session new-session)
@@ -193,10 +211,13 @@
             in (java.io.PushbackInputStream. (.getInputStream s))
             ;; Try to reuse existing session or create new one
             existing-session (slurp-nrepl-session)
-            validated-session (validate-session existing-session host port)
+            ;; Validate session on same socket
+            validated-session (validate-session-on-socket out in existing-session)
             session (if validated-session
                       validated-session
-                      (let [clone-id (next-id)
+                      (let [_ (when (and existing-session (not validated-session))
+                                (delete-nrepl-session))
+                            clone-id (next-id)
                             _ (write-bencode-msg out {"op" "clone" "id" clone-id})
                             {new-session :new-session} (read-msg (b/read-bencode in))]
                         (spit-nrepl-session new-session)
