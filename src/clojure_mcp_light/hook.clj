@@ -203,11 +203,13 @@
                 (restore-file file_path backup)
                 {:decision "block"
                  :reason (str "Delimiter errors could not be auto-fixed. File was restored from backup to previous state: " file_path)
-                 :hookSpecificOutput {:hookEventName "PostToolUse"}})))
+                 :hookSpecificOutput {:hookEventName "PostToolUse"
+                                      :additionalContext "There are delimiter errors in the file. So we restored from backup."}})))
           (do
             (log-msg "  No delimiter errors, deleting backup")
             (delete-backup backup)
-            nil))))))
+            {:reason "No delimiter errors were found in the file."
+             :hookSpecificOutput {:hookEventName "PostToolUse"}}))))))
 
 (defn -main []
   (try
