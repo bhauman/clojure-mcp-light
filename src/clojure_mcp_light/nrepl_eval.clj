@@ -149,7 +149,7 @@
         (let [m (cond-> (update m :responses conj resp)
                   value
                   (update :vals conj value))]
-          (if (= ["done"] status)
+          (if (some #{"done"} status)
             (do
               ;; Close socket but keep session alive on server
               (.close s)
