@@ -157,3 +157,20 @@
                                          (filter #(> % 10) data)))]
                       (when-let [x (first result)]
                         (str/upper-case x"))))) ; Missing multiple closing parens
+
+(deftest delimiter-error-with-data-readers-test
+  (testing "does not error on standard EDN data readers"
+    (is (false? (dr/delimiter-error? "#inst \"2023-01-01\"")))
+    (is (false? (dr/delimiter-error? "#uuid \"550e8400-e29b-41d4-a716-446655440000\"")))
+    (is (false? (dr/delimiter-error? "(def x #inst \"2023-01-01\")")))
+    (is (false? (dr/delimiter-error? "(def y #uuid \"550e8400-e29b-41d4-a716-446655440000\")"))))
+
+  (testing "does not choke on unknown/custom data readers"
+    (is (false? (dr/delimiter-error? "#my/custom {:a 1}")))
+    (is (false? (dr/delimiter-error? "#js {:x 1 :y 2}")))
+    (is (false? (dr/delimiter-error? "(def z #custom/tag \"value\")"))))
+
+  (testing "detects delimiter errors in code with data readers"
+    (is (true? (dr/delimiter-error? "(def x #inst \"2023-01-01\"")))
+    (is (true? (dr/delimiter-error? "(let [t #uuid \"550e8400-e29b-41d4-a716-446655440000\"] t")))
+    (is (true? (dr/delimiter-error? "(def x #my/custom {:a 1")))))

@@ -9,16 +9,24 @@
    Checks both that it's an :edamame/error and has delimiter info.
    Uses :all true to enable all standard Clojure reader features:
    function literals, regex, quotes, syntax-quote, deref, var, etc.
-   Also enables :read-cond :allow to support reader conditionals."
+   Also enables :read-cond :allow to support reader conditionals.
+   Handles unknown data readers gracefully with a default reader fn."
   [s]
   (try
     (e/parse-string-all s {:all true
-                           :read-cond :allow})
+                           :read-cond :allow
+                           :readers *data-readers*
+                           :auto-resolve (fn [alias]
+                                          (or (get (ns-aliases *ns*) alias)
+                                              (symbol (str alias))))})
     false ; No error = no delimiter error
     (catch clojure.lang.ExceptionInfo ex
       (let [data (ex-data ex)]
         (and (= :edamame/error (:type data))
-             (contains? data :edamame/opened-delimiter))))))
+             (contains? data :edamame/opened-delimiter))))
+    (catch Exception _
+      ;; Non-delimiter errors (e.g., unknown readers) should not be treated as delimiter errors
+      false)))
 
 (defn parinfer-repair
   "Attempts to repair delimiter errors using parinfer-rust.
