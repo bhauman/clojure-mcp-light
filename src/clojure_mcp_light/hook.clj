@@ -120,7 +120,7 @@
 (defmethod process-hook ["PreToolUse" "Bash"]
   [{:keys [tool_input session_id]}]
   (let [command (:command tool_input)
-        updated-command (str "CML_CLAUDE_CODE_SESSION_ID=" session_id " && " command)]
+        updated-command (str "CML_CLAUDE_CODE_SESSION_ID=" session_id " " command)]
     (log-msg (str "[PreToolUse Bash] Prepending session ID: " session_id))
     (log-msg (str "[PreToolUse Bash] Original command: " command))
     (log-msg (str "[PreToolUse Bash] Updated command: " updated-command))

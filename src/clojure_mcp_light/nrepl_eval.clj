@@ -43,23 +43,73 @@
 
 ;; Session file I/O utilities
 
+(defn session-file-path []
+  "Returns path to nrepl session file. Uses Claude Code session-specific
+   tmp directory if CML_CLAUDE_CODE_SESSION_ID is set, otherwise uses
+   .nrepl-session in current directory."
+  (if-let [cc-session-id (System/getenv "CML_CLAUDE_CODE_SESSION_ID")]
+    (let [tmp-dir (System/getProperty "java.io.tmpdir")
+          session-dir (str "cc-" cc-session-id)
+          parent-dir (java.io.File. tmp-dir session-dir)]
+      (.getPath (java.io.File. parent-dir "nrepl-session")))
+    ".nrepl-session"))
+
 (defn slurp-nrepl-session []
-  "Read session ID from .nrepl-session file. Returns nil if file doesn't exist or on error."
+  "Read session ID from nrepl session file. Returns nil if file doesn't exist or on error."
   (try
-    (when (.exists (java.io.File. ".nrepl-session"))
-      (str/trim (slurp ".nrepl-session")))
+    (let [session-file (session-file-path)]
+      (when (.exists (java.io.File. session-file))
+        (str/trim (slurp session-file))))
     (catch Exception _
       nil)))
 
 (defn spit-nrepl-session [session-id]
-  "Write session ID to .nrepl-session file."
-  (spit ".nrepl-session" (str session-id "\n")))
+  "Write session ID to nrepl session file."
+  (let [session-file (session-file-path)
+        file (java.io.File. session-file)]
+    ;; Ensure parent directories exist
+    (when-let [parent (.getParentFile file)]
+      (.mkdirs parent))
+    (spit session-file (str session-id "\n"))))
 
 (defn delete-nrepl-session []
-  "Delete .nrepl-session file if it exists."
-  (let [f (java.io.File. ".nrepl-session")]
+  "Delete nrepl session file if it exists."
+  (let [f (java.io.File. (session-file-path))]
     (when (.exists f)
       (.delete f))))
+
+;; Session validation utilities
+
+(defn get-active-sessions
+  "Get list of active session IDs from nREPL server.
+   Returns nil if unable to connect or on error."
+  [host port]
+  (try
+    (let [s (java.net.Socket. (or host "localhost") (coerce-long port))
+          out (.getOutputStream s)
+          in (java.io.PushbackInputStream. (.getInputStream s))
+          id (next-id)
+          _ (b/write-bencode out {"op" "ls-sessions" "id" id})
+          response (read-msg (b/read-bencode in))]
+      (.close s)
+      (:sessions response))
+    (catch Exception _
+      nil)))
+
+(defn validate-session
+  "Check if session-id is still valid on the nREPL server.
+   Returns the session-id if valid, nil otherwise.
+   If invalid, deletes the session file."
+  [session-id host port]
+  (when session-id
+    (if-let [active-sessions (get-active-sessions host port)]
+      (if (some #{session-id} active-sessions)
+        session-id
+        (do
+          (delete-nrepl-session)
+          nil))
+      ;; If we can't check (server down?), assume session is valid
+      session-id)))
 
 (defn eval-expr
   "Execute :expr in nREPL on given :host (defaults to localhost)
@@ -77,8 +127,9 @@
         in (java.io.PushbackInputStream. (.getInputStream s))
         ;; Try to reuse existing session or create new one
         existing-session (slurp-nrepl-session)
-        session (if existing-session
-                  existing-session
+        validated-session (validate-session existing-session host port)
+        session (if validated-session
+                  validated-session
                   (let [id (next-id)
                         _ (b/write-bencode out {"op" "clone" "id" id})
                         {new-session :new-session} (read-msg (b/read-bencode in))]
@@ -140,8 +191,9 @@
         in (java.io.PushbackInputStream. (.getInputStream s))
         ;; Try to reuse existing session or create new one
         existing-session (slurp-nrepl-session)
-        session (if existing-session
-                  existing-session
+        validated-session (validate-session existing-session host port)
+        session (if validated-session
+                  validated-session
                   (let [clone-id (next-id)
                         _ (b/write-bencode out {"op" "clone" "id" clone-id})
                         {new-session :new-session} (read-msg (b/read-bencode in))]
