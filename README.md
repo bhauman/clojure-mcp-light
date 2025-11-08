@@ -123,7 +123,7 @@ Clojure-mcp-light provides two main tools:
      "hooks": {
        "PreToolUse": [
          {
-           "matcher": "Write|Edit",
+           "matcher": "Write|Edit|Bash",
            "hooks": [
              {
                "type": "command",
