@@ -56,6 +56,21 @@
       fs/normalize
       str))
 
+(defn ppid-session-id
+  "Get session identifier based on parent process ID.
+
+  Returns a string in the format 'ppid-{pid}-{startInstant}' or 'ppid-{pid}'
+  if start time is unavailable. Returns nil if parent process handle cannot
+  be obtained or on any exception."
+  []
+  (try
+    (when-let [ph (some-> (java.lang.ProcessHandle/current) .parent (.orElse nil))]
+      (let [pid (.pid ph)
+            start (some-> (.info ph) .startInstant (.orElse nil) str)]
+        (str "ppid-" pid (when start (str "-" start)))))
+    (catch Exception _
+      nil)))
+
 (defn editor-scope-id
   "Get editor session scope identifier with fallback strategy.
 
@@ -68,13 +83,7 @@
   lifetime even when the session ID environment variable is not set."
   []
   (or (System/getenv "CML_CLAUDE_CODE_SESSION_ID")
-      (try
-        (when-let [ph (some-> (java.lang.ProcessHandle/current) .parent (.orElse nil))]
-          (let [pid (.pid ph)
-                start (some-> (.info ph) .startInstant (.orElse nil) str)]
-            (str "ppid-" pid (when start (str "-" start)))))
-        (catch Exception _
-          nil))
+      (ppid-session-id)
       "global"))
 
 (defn get-possible-session-ids
@@ -93,13 +102,7 @@
   (let [env-id (or session-id (System/getenv "CML_CLAUDE_CODE_SESSION_ID"))
         ppid-id (if ppid
                   (str "ppid-" ppid)
-                  (try
-                    (when-let [ph (some-> (java.lang.ProcessHandle/current) .parent (.orElse nil))]
-                      (let [pid (.pid ph)
-                            start (some-> (.info ph) .startInstant (.orElse nil) str)]
-                        (str "ppid-" pid (when start (str "-" start)))))
-                    (catch Exception _
-                      nil)))]
+                  (ppid-session-id))]
     (->> [env-id ppid-id]
          (filter some?)
          distinct
