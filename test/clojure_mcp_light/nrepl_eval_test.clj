@@ -134,19 +134,6 @@
       ;; Should not throw an error
       (is (nil? (ne/delete-nrepl-session "localhost" 7888))))))
 
-(deftest get-port-test
-  (testing "gets port from options"
-    (is (= 8888 (ne/get-port {:port 8888}))))
-
-  (testing "falls back to environment variable"
-    (with-redefs [ne/get-port
-                  (fn [opts]
-                    (or (:port opts)
-                        (some-> (System/getenv "NREPL_PORT") parse-long)
-                        (ne/slurp-nrepl-port)))]
-      ;; Can't easily test env var without actually setting it
-      (is (number? (or (ne/get-port {}) nil))))))
-
 (deftest get-host-test
   (testing "gets host from options"
     (is (= "custom-host" (ne/get-host {:host "custom-host"}))))

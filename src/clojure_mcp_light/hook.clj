@@ -200,6 +200,27 @@
             (finally
               (delete-backup backup))))))))
 
+(defmethod process-hook ["SessionEnd" nil]
+  [{:keys [session_id]}]
+  (log-msg "SessionEnd: cleaning up session" session_id)
+  (try
+    (let [report (tmp/cleanup-session! {:session-id session_id})]
+      (log-msg "  Cleanup attempted for session IDs:" (:attempted report))
+      (log-msg "  Deleted directories:" (:deleted report))
+      (log-msg "  Skipped (non-existent):" (:skipped report))
+      (when (seq (:errors report))
+        (log-msg "  Errors during cleanup:")
+        (doseq [{:keys [path error]} (:errors report)]
+          (log-msg "    " path "-" error)))
+      ;; Always return success, never block SessionEnd
+      {:hookSpecificOutput
+       {:hookEventName "SessionEnd"}})
+    (catch Exception e
+      (log-msg "  Unexpected error during cleanup:" (.getMessage e))
+      ;; Even on complete failure, return success
+      {:hookSpecificOutput
+       {:hookEventName "SessionEnd"}})))
+
 (defn -main []
   (try
     (let [input-json (slurp *in*)

@@ -77,6 +77,34 @@
           nil))
       "global"))
 
+(defn get-possible-session-ids
+  "Get all possible session IDs for cleanup purposes.
+
+  Parameters:
+  - :session-id - Optional explicit session ID (e.g., from hook input)
+  - :ppid       - Optional parent process ID for fallback calculation
+
+  Returns a vector of unique session IDs that might have been used during
+  this session. This ensures cleanup works regardless of which ID was actually
+  used during file operations.
+
+  Example: [{:session-id \"abc123\"}] might return [\"abc123\" \"ppid-1234-...\"]"
+  [{:keys [session-id ppid]}]
+  (let [env-id (or session-id (System/getenv "CML_CLAUDE_CODE_SESSION_ID"))
+        ppid-id (if ppid
+                  (str "ppid-" ppid)
+                  (try
+                    (when-let [ph (some-> (java.lang.ProcessHandle/current) .parent (.orElse nil))]
+                      (let [pid (.pid ph)
+                            start (some-> (.info ph) .startInstant (.orElse nil) str)]
+                        (str "ppid-" pid (when start (str "-" start)))))
+                    (catch Exception _
+                      nil)))]
+    (->> [env-id ppid-id]
+         (filter some?)
+         distinct
+         vec)))
+
 ;; ============================================================================
 ;; Unified Session/Project Root
 ;; ============================================================================
@@ -162,3 +190,46 @@
                           0
                           (.getNameCount ^java.nio.file.Path normalized)))]
     (str (fs/path (backups-dir ctx) rel))))
+
+;; ============================================================================
+;; Session Cleanup
+;; ============================================================================
+
+(defn cleanup-session!
+  "Clean up temporary files for this Claude Code session.
+
+  Attempts to delete session directories for all possible session IDs
+  (both env-based and PPID-based) to ensure cleanup works regardless
+  of which ID was actually used during the session.
+
+  Parameters:
+  - :session-id - Optional explicit session ID (e.g., from SessionEnd hook)
+  - :ppid       - Optional parent process ID
+
+  Returns a cleanup report map:
+  - :attempted - List of session IDs for which cleanup was attempted
+  - :deleted   - List of successfully deleted directory paths
+  - :errors    - List of {:path path :error error-msg} maps for failures
+  - :skipped   - List of paths that didn't exist (skipped silently)"
+  [{:keys [session-id ppid]}]
+  (let [session-ids (get-possible-session-ids {:session-id session-id :ppid ppid})
+        runtime (runtime-base-dir)
+        usr (sanitize (user-id))
+        host (sanitize (hostname))
+        results (atom {:attempted session-ids
+                       :deleted []
+                       :errors []
+                       :skipped []})]
+    (doseq [sess-id session-ids]
+      (let [sess-dir (str (fs/path runtime "claude-code" usr host (sanitize sess-id)))]
+        (try
+          (if (fs/exists? sess-dir)
+            (do
+              (fs/delete-tree sess-dir)
+              (swap! results update :deleted conj sess-dir))
+            (swap! results update :skipped conj sess-dir))
+          (catch Exception e
+            (swap! results update :errors conj
+                   {:path sess-dir
+                    :error (.getMessage e)})))))
+    @results))
