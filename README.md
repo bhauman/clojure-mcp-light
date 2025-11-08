@@ -97,12 +97,13 @@ Clojure-mcp-light provides two main tools:
    See https://github.com/babashka/bbin for more details.
 
 2. Install parinfer-rust (required dependency):
-   ```bash
-   # See https://github.com/eraserhd/parinfer-rust for installation
-   # The parinfer-rust binary must be available on your PATH
-   ```
 
-3. Install clojure-mcp-light:
+   See https://github.com/eraserhd/parinfer-rust for installation
+
+   The parinfer-rust binary must be available on your PATH
+
+
+3. Install clojure-mcp-light (run both commands):
 
    From GitHub:
    ```bash
@@ -120,7 +121,7 @@ Clojure-mcp-light provides two main tools:
    bbin install . --as clj-nrepl-eval --main-opts '["-m"  "clojure-mcp-light.nrepl-eval"]'
    ```
 
-   This installs both commands:
+   This is to install both commands:
    - `clj-paren-repair-claude-hook` - Hook for automatic delimiter fixing
    - `clj-nrepl-eval` - nREPL evaluation tool
 
