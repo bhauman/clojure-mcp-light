@@ -81,24 +81,51 @@
   (some #(string/ends-with? file-path %)
         [".clj" ".cljs" ".cljc" ".bb" ".edn"]))
 
+(defn cljfmt-should-fix?
+  "Check if file needs formatting using cljfmt check.
+  Returns true if file needs formatting, false otherwise.
+  Logs stats for formatting state."
+  [file-path]
+  (try
+    (let [result (sh "cljfmt" "check" file-path)
+          exit-code (:exit result)]
+      (case exit-code
+        0 (do
+            (stats/log-stats! :cljfmt-already-formatted {:file-path file-path})
+            false)
+        1 (do
+            (stats/log-stats! :cljfmt-needed-formatting {:file-path file-path})
+            true)
+        ;; Exit code 2 or other = parse error
+        (do
+          (stats/log-stats! :cljfmt-check-error {:file-path file-path
+                                                 :exit-code exit-code})
+          false)))
+    (catch Exception e
+      (stats/log-stats! :cljfmt-check-error {:file-path file-path
+                                             :ex-message (ex-message e)})
+      false)))
+
 (defn run-cljfmt
-  "Run cljfmt fix on the given file path.
+  "Run cljfmt fix on the given file path if it needs formatting.
   Returns true if successful, false otherwise."
   [file-path]
   (when *enable-cljfmt*
-    (try
-      (timbre/debug "Running cljfmt fix on:" file-path)
-      (let [result (sh "cljfmt" "fix" file-path)]
-        (if (zero? (:exit result))
-          (do
-            (timbre/debug "  cljfmt succeeded")
-            true)
-          (do
-            (timbre/debug "  cljfmt failed:" (:err result))
-            false)))
-      (catch Exception e
-        (timbre/debug "  cljfmt error:" (.getMessage e))
-        false))))
+    (stats/log-stats! :cljfmt-run {:file-path file-path})
+    (when (cljfmt-should-fix? file-path)
+      (try
+        (timbre/debug "Running cljfmt fix on:" file-path)
+        (let [result (sh "cljfmt" "fix" file-path)]
+          (if (zero? (:exit result))
+            (do
+              (timbre/debug "  cljfmt succeeded")
+              true)
+            (do
+              (timbre/debug "  cljfmt failed:" (:err result))
+              false)))
+        (catch Exception e
+          (timbre/debug "  cljfmt error:" (.getMessage e))
+          false)))))
 
 (defn backup-file
   "Backup file to temp location, returns backup path"

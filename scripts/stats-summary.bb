@@ -142,6 +142,32 @@
 
     (println)))
 
+(defn calculate-cljfmt-efficiency
+  "Calculate cljfmt efficiency metrics"
+  [entries]
+  (let [cljfmt-events (filter #(str/starts-with? (name (:event-type %)) "cljfmt-") entries)
+        by-type (count-by :event-type cljfmt-events)
+        total-runs (get by-type :cljfmt-run 0)
+        already-formatted (get by-type :cljfmt-already-formatted 0)
+        needed-formatting (get by-type :cljfmt-needed-formatting 0)
+        check-errors (get by-type :cljfmt-check-error 0)]
+
+    (when (pos? total-runs)
+      (print-section "Cljfmt Efficiency")
+      (println (format "  Total cljfmt runs:          %5d" total-runs))
+      (println (format "  Already formatted:          %5d" already-formatted))
+      (println (format "  Needed formatting:          %5d" needed-formatting))
+      (println (format "  Check errors:               %5d" check-errors))
+      (println)
+
+      (when (pos? (+ already-formatted needed-formatting))
+        (let [efficiency-rate (* 100.0 (/ already-formatted (+ already-formatted needed-formatting)))
+              waste-rate (* 100.0 (/ needed-formatting total-runs))]
+          (println (format "  Files already formatted:   %5.1f%%" efficiency-rate))
+          (println (format "  Files that needed fix:     %5.1f%%" waste-rate))))
+
+      (println))))
+
 (defn -main [& args]
   (let [file-path (or (first args) stats-file)
         entries (read-stats file-path)]
@@ -153,6 +179,7 @@
       (do
         (print-summary entries)
         (calculate-success-rate entries)
+        (calculate-cljfmt-efficiency entries)
         (System/exit 0)))))
 
 (when (= *file* (System/getProperty "babashka.file"))
