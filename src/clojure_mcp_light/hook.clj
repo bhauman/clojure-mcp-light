@@ -37,6 +37,46 @@
   [["-c" "--cljfmt" "Enable cljfmt formatting on files after edit/write"]
    ["-h" "--help" "Show help message"]])
 
+(defn usage []
+  (str "clj-paren-repair-claude-hook - Claude Code hook for Clojure delimiter repair\n"
+       "\n"
+       "Usage: clj-paren-repair-claude-hook [OPTIONS]\n"
+       "\n"
+       "Options:\n"
+       "  -c, --cljfmt    Enable cljfmt formatting on files after edit/write\n"
+       "  -h, --help      Show this help message"))
+
+(defn error-msg [errors]
+  (str "The following errors occurred while parsing command:\n\n"
+       (string/join \newline errors)))
+
+(defn handle-cli-args
+  "Parse CLI arguments and handle help/errors. Returns options map or exits."
+  [args]
+  (let [actual-args (if (seq args) args *command-line-args*)
+        {:keys [options errors]} (parse-opts actual-args cli-options)]
+    (log-msg "CLI args received:" actual-args)
+    (log-msg "*command-line-args*:" *command-line-args*)
+    (log-msg "Parsed options:" options)
+    (log-msg "Parse errors:" errors)
+
+    (cond
+      (:help options)
+      (do
+        (println (usage))
+        (System/exit 0))
+
+      errors
+      (do
+        (binding [*out* *err*]
+          (println (error-msg errors))
+          (println)
+          (println (usage)))
+        (System/exit 1))
+
+      :else
+      options)))
+
 ;; ============================================================================
 ;; Claude Code Hook Functions
 ;; ============================================================================
@@ -268,49 +308,24 @@
       nil)))
 
 (defn -main [& args]
-  ;; Use *command-line-args* if args is empty (Babashka -m behavior)
-  (let [actual-args (if (seq args) args *command-line-args*)]
-    (log-msg "CLI args received:" actual-args)
-    (log-msg "*command-line-args*:" *command-line-args*)
-    (let [{:keys [options errors]} (parse-opts actual-args cli-options)]
-      (log-msg "Parsed options:" options)
-      (log-msg "Parse errors:" errors)
-
-    ;; Handle help
-      (when (:help options)
-        (println "clj-paren-repair-claude-hook - Claude Code hook for Clojure delimiter repair")
-        (println "")
-        (println "Usage: clj-paren-repair-claude-hook [OPTIONS]")
-        (println "")
-        (println "Options:")
-        (println "  --cljfmt    Enable cljfmt formatting on files after edit/write")
-        (println "  --help      Show this help message")
-        (System/exit 0))
-
-    ;; Handle errors
-      (when errors
-        (binding [*out* *err*]
-          (doseq [error errors]
-            (println "Error:" error)))
-        (System/exit 1))
-
+  (let [options (handle-cli-args args)]
     ;; Set cljfmt flag from CLI options
-      (binding [*enable-cljfmt* (:cljfmt options)]
-        (try
-          (let [input-json (slurp *in*)
-                _ (log-msg "INPUT:" input-json)
-                _ (when *enable-cljfmt*
-                    (log-msg "cljfmt formatting is ENABLED"))
-                hook-input (json/parse-string input-json true)
-                response (process-hook hook-input)
-                _ (log-msg "OUTPUT:" (json/generate-string response))]
-            (when response
-              (println (json/generate-string response)))
-            (System/exit 0))
-          (catch Exception e
-            (log-msg "Hook error:" (.getMessage e))
-            (log-msg "Stack trace:" (with-out-str (.printStackTrace e)))
-            (binding [*out* *err*]
-              (println "Hook error:" (.getMessage e))
-              (println "Stack trace:" (with-out-str (.printStackTrace e))))
-            (System/exit 2)))))))
+    (binding [*enable-cljfmt* (:cljfmt options)]
+      (try
+        (let [input-json (slurp *in*)
+              _ (log-msg "INPUT:" input-json)
+              _ (when *enable-cljfmt*
+                  (log-msg "cljfmt formatting is ENABLED"))
+              hook-input (json/parse-string input-json true)
+              response (process-hook hook-input)
+              _ (log-msg "OUTPUT:" (json/generate-string response))]
+          (when response
+            (println (json/generate-string response)))
+          (System/exit 0))
+        (catch Exception e
+          (log-msg "Hook error:" (.getMessage e))
+          (log-msg "Stack trace:" (with-out-str (.printStackTrace e)))
+          (binding [*out* *err*]
+            (println "Hook error:" (.getMessage e))
+            (println "Stack trace:" (with-out-str (.printStackTrace e))))
+          (System/exit 2))))))
