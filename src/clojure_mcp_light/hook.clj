@@ -6,29 +6,14 @@
             [clojure.java.shell :refer [sh]]
             [clojure.tools.cli :refer [parse-opts]]
             [clojure-mcp-light.delimiter-repair :refer [delimiter-error? fix-delimiters]]
-            [clojure-mcp-light.tmp :as tmp]))
+            [clojure-mcp-light.tmp :as tmp]
+            [taoensso.timbre :as timbre]))
 
 ;; ============================================================================
 ;; Configuration
 ;; ============================================================================
 
-(def ^:dynamic *enable-logging*
-  (= "true" (System/getenv "CML_ENABLE_LOGGING")))
-(def ^:dynamic *log-file* "hook-logs/clj-paren-repair-hook.log")
 (def ^:dynamic *enable-cljfmt* false)
-
-(defn log-msg
-  "Log message if logging is enabled"
-  [& args]
-  (when *enable-logging*
-    (try
-      (let [timestamp (java.time.LocalDateTime/now)
-            msg (str timestamp " - " (string/join " " args) "\n")]
-        (spit *log-file* msg :append true)
-        nil)
-      (catch Exception _
-        ;; Silently fail - don't break hook if logging fails
-        nil))))
 
 ;; ============================================================================
 ;; CLI Options
@@ -56,10 +41,10 @@
   [args]
   (let [actual-args (if (seq args) args *command-line-args*)
         {:keys [options errors]} (parse-opts actual-args cli-options)]
-    (log-msg "CLI args received:" actual-args)
-    (log-msg "*command-line-args*:" *command-line-args*)
-    (log-msg "Parsed options:" options)
-    (log-msg "Parse errors:" errors)
+    (timbre/debug "CLI args received:" actual-args)
+    (timbre/debug "*command-line-args*:" *command-line-args*)
+    (timbre/debug "Parsed options:" options)
+    (timbre/debug "Parse errors:" errors)
 
     (cond
       (:help options)
@@ -92,17 +77,17 @@
   [file-path]
   (when *enable-cljfmt*
     (try
-      (log-msg "Running cljfmt fix on:" file-path)
+      (timbre/debug "Running cljfmt fix on:" file-path)
       (let [result (sh "cljfmt" "fix" file-path)]
         (if (zero? (:exit result))
           (do
-            (log-msg "  cljfmt succeeded")
+            (timbre/debug "  cljfmt succeeded")
             true)
           (do
-            (log-msg "  cljfmt failed:" (:err result))
+            (timbre/debug "  cljfmt failed:" (:err result))
             false)))
       (catch Exception e
-        (log-msg "  cljfmt error:" (.getMessage e))
+        (timbre/debug "  cljfmt error:" (.getMessage e))
         false))))
 
 (defn backup-file
@@ -176,9 +161,9 @@
   [{:keys [tool_input session_id]}]
   (let [command (:command tool_input)
         updated-command (str "CML_CLAUDE_CODE_SESSION_ID=" session_id " " command)]
-    (log-msg (str "[PreToolUse Bash] Prepending session ID: " session_id))
-    (log-msg (str "[PreToolUse Bash] Original command: " command))
-    (log-msg (str "[PreToolUse Bash] Updated command: " updated-command))
+    (timbre/debug "[PreToolUse Bash] Prepending session ID:" session_id)
+    (timbre/debug "[PreToolUse Bash] Original command:" command)
+    (timbre/debug "[PreToolUse Bash] Updated command:" updated-command)
     {:hookSpecificOutput
      {:hookEventName "PreToolUse"
       :updatedInput {:command updated-command}}}))
@@ -187,45 +172,45 @@
   [{:keys [tool_input]}]
   (let [{:keys [file_path content]} tool_input]
     (when (clojure-file? file_path)
-      (log-msg "PreWrite: clojure " file_path)
+      (timbre/debug "PreWrite: clojure" file_path)
       (if (delimiter-error? content)
         (do
-          (log-msg "  Delimiter error detected, attempting fix")
+          (timbre/debug "  Delimiter error detected, attempting fix")
           (if-let [fixed-content (fix-delimiters content)]
             (do
-              (log-msg "  Fix successful, allowing write with updated content")
+              (timbre/debug "  Fix successful, allowing write with updated content")
               {:hookSpecificOutput
                {:hookEventName "PreToolUse"
                 :updatedInput {:file_path file_path
                                :content fixed-content}}})
             (do
-              (log-msg "  Fix failed, denying write")
+              (timbre/debug "  Fix failed, denying write")
               {:hookSpecificOutput
                {:hookEventName "PreToolUse"
                 :permissionDecision "deny"
                 :permissionDecisionReason "Delimiter errors found and could not be auto-fixed"}})))
         (do
-          (log-msg "  No delimiter errors, allowing write")
+          (timbre/debug "  No delimiter errors, allowing write")
           nil)))))
 
 (defmethod process-hook ["PreToolUse" "Edit"]
   [{:keys [tool_input session_id]}]
   (let [{:keys [file_path]} tool_input]
     (when (clojure-file? file_path)
-      (log-msg "PreEdit: clojure" file_path)
+      (timbre/debug "PreEdit: clojure" file_path)
       (try
         (let [backup (backup-file file_path session_id)]
-          (log-msg "  Created backup:" backup)
+          (timbre/debug "  Created backup:" backup)
           nil)
         (catch Exception e
-          (log-msg "  Backup failed:" (.getMessage e))
+          (timbre/debug "  Backup failed:" (.getMessage e))
           nil)))))
 
 (defmethod process-hook ["PostToolUse" "Write"]
   [{:keys [tool_input tool_response]}]
   (let [{:keys [file_path]} tool_input]
     (when (and (clojure-file? file_path) tool_response *enable-cljfmt*)
-      (log-msg "PostWrite: clojure cljfmt" file_path)
+      (timbre/debug "PostWrite: clojure cljfmt" file_path)
       (run-cljfmt file_path)
       nil)))
 
@@ -233,15 +218,15 @@
   [{:keys [tool_input tool_response session_id]}]
   (let [{:keys [file_path]} tool_input]
     (when (and (clojure-file? file_path) tool_response)
-      (log-msg "PostEdit: clojure " file_path)
+      (timbre/debug "PostEdit: clojure" file_path)
       (let [backup (tmp/backup-path {:session-id session_id} file_path)
             file-content (slurp file_path)]
         (if (delimiter-error? file-content)
           (do
-            (log-msg "  Delimiter error detected, attempting fix")
+            (timbre/debug "  Delimiter error detected, attempting fix")
             (if-let [fixed-content (fix-delimiters file-content)]
               (try
-                (log-msg "  Fix successful, applying fix and deleting backup")
+                (timbre/debug "  Fix successful, applying fix and deleting backup")
                 (spit file_path fixed-content)
                 (when *enable-cljfmt*
                   (run-cljfmt file_path))
@@ -249,7 +234,7 @@
                 (finally
                   (delete-backup backup)))
               (do
-                (log-msg "  Fix failed, restoring from backup:" backup)
+                (timbre/debug "  Fix failed, restoring from backup:" backup)
                 (restore-file file_path backup)
                 {:decision "block"
                  :reason (str "Delimiter errors could not be auto-fixed. File was restored from backup to previous state: " file_path)
@@ -257,7 +242,7 @@
                  {:hookEventName "PostToolUse"
                   :additionalContext "There are delimiter errors in the file. So we restored from backup."}})))
           (try
-            (log-msg "  No delimiter errors, deleting backup")
+            (timbre/debug "  No delimiter errors, deleting backup")
             (when *enable-cljfmt*
               (run-cljfmt file_path))
             nil
@@ -266,40 +251,51 @@
 
 (defmethod process-hook ["SessionEnd" nil]
   [{:keys [session_id]}]
-  (log-msg "SessionEnd: cleaning up session" session_id)
+  (timbre/info "SessionEnd: cleaning up session" session_id)
   (try
     (let [report (tmp/cleanup-session! {:session-id session_id})]
-      (log-msg "  Cleanup attempted for session IDs:" (:attempted report))
-      (log-msg "  Deleted directories:" (:deleted report))
-      (log-msg "  Skipped (non-existent):" (:skipped report))
+      (timbre/info "  Cleanup attempted for session IDs:" (:attempted report))
+      (timbre/info "  Deleted directories:" (:deleted report))
+      (timbre/info "  Skipped (non-existent):" (:skipped report))
       (when (seq (:errors report))
-        (log-msg "  Errors during cleanup:")
+        (timbre/warn "  Errors during cleanup:")
         (doseq [{:keys [path error]} (:errors report)]
-          (log-msg "    " path "-" error)))
+          (timbre/warn "    " path "-" error)))
       nil)
     (catch Exception e
-      (log-msg "  Unexpected error during cleanup:" (.getMessage e))
+      (timbre/error "  Unexpected error during cleanup:" (.getMessage e))
       nil)))
 
 (defn -main [& args]
-  (let [options (handle-cli-args args)]
-    ;; Set cljfmt flag from CLI options
-    (binding [*enable-cljfmt* (:cljfmt options)]
-      (try
-        (let [input-json (slurp *in*)
-              _ (log-msg "INPUT:" input-json)
-              _ (when *enable-cljfmt*
-                  (log-msg "cljfmt formatting is ENABLED"))
-              hook-input (json/parse-string input-json true)
-              response (process-hook hook-input)
-              _ (log-msg "OUTPUT:" (json/generate-string response))]
-          (when response
-            (println (json/generate-string response)))
-          (System/exit 0))
-        (catch Exception e
-          (log-msg "Hook error:" (.getMessage e))
-          (log-msg "Stack trace:" (with-out-str (.printStackTrace e)))
-          (binding [*out* *err*]
-            (println "Hook error:" (.getMessage e))
-            (println "Stack trace:" (with-out-str (.printStackTrace e))))
-          (System/exit 2))))))
+  (let [enable-logging? (= "true" (System/getenv "CML_ENABLE_LOGGING"))
+        log-file "hook-logs/clj-paren-repair-hook-timbre.log"]
+
+    ;; Configure timbre logging BEFORE any logging calls
+    ;; Always use set-config! to replace default println appender
+    (timbre/set-config!
+     {:min-level (if enable-logging? :debug :report)
+      :appenders {:spit (assoc
+                         (timbre/spit-appender {:fname log-file})
+                         :enabled? enable-logging?)}})
+
+    (let [options (handle-cli-args args)]
+      ;; Set cljfmt flag from CLI options
+      (binding [*enable-cljfmt* (:cljfmt options)]
+        (try
+          (let [input-json (slurp *in*)
+                _ (timbre/debug "INPUT:" input-json)
+                _ (when *enable-cljfmt*
+                    (timbre/debug "cljfmt formatting is ENABLED"))
+                hook-input (json/parse-string input-json true)
+                response (process-hook hook-input)
+                _ (timbre/debug "OUTPUT:" (json/generate-string response))]
+            (when response
+              (println (json/generate-string response)))
+            (System/exit 0))
+          (catch Exception e
+            (timbre/error "Hook error:" (.getMessage e))
+            (timbre/error "Stack trace:" (with-out-str (.printStackTrace e)))
+            (binding [*out* *err*]
+              (println "Hook error:" (.getMessage e))
+              (println "Stack trace:" (with-out-str (.printStackTrace e))))
+            (System/exit 2)))))))
