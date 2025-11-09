@@ -24,7 +24,8 @@
     (try
       (let [timestamp (java.time.LocalDateTime/now)
             msg (str timestamp " - " (string/join " " args) "\n")]
-        (spit *log-file* msg :append true))
+        (spit *log-file* msg :append true)
+        nil)
       (catch Exception _
         ;; Silently fail - don't break hook if logging fails
         nil))))
@@ -167,13 +168,10 @@
   (fn [hook-input]
     [(:hook_event_name hook-input) (:tool_name hook-input)]))
 
-(defmethod process-hook :default
-  [hook-input]
-  (when (= (:hook_event_name hook-input) "PreToolUse")
-    {:hookSpecificOutput
-     {:hookEventName "PreToolUse"
-      :permissionDecision "allow"}}))
+(defmethod process-hook :default [_] nil)
 
+;; the only way I could see to supply the CC session id to the clj-nrepl-eval cmd
+;; not convinced we need this, so I'm still trying this out
 (defmethod process-hook ["PreToolUse" "Bash"]
   [{:keys [tool_input session_id]}]
   (let [command (:command tool_input)
@@ -183,77 +181,61 @@
     (log-msg (str "[PreToolUse Bash] Updated command: " updated-command))
     {:hookSpecificOutput
      {:hookEventName "PreToolUse"
-      :permissionDecision "allow"
       :updatedInput {:command updated-command}}}))
 
 (defmethod process-hook ["PreToolUse" "Write"]
   [{:keys [tool_input]}]
-  (let [{:keys [file_path content]} tool_input
-        base-output {:hookSpecificOutput
-                     {:hookEventName "PreToolUse"
-                      :permissionDecision "allow"}}]
-    (log-msg "PreWrite:" file_path)
-    (if-not (clojure-file? file_path)
-      (do
-        (log-msg "  Skipping non-Clojure file")
-        base-output)
+  (let [{:keys [file_path content]} tool_input]
+    (when (clojure-file? file_path)
+      (log-msg "PreWrite: clojure " file_path)
       (if (delimiter-error? content)
         (do
           (log-msg "  Delimiter error detected, attempting fix")
-          (let [fixed-content (fix-delimiters content)]
-            (if fixed-content
-              (do
-                (log-msg "  Fix successful, allowing write with updated content")
-                (-> base-output
-                    (assoc-in [:hookSpecificOutput :permissionDecisionReason] "Auto-fixed delimiter errors")
-                    (assoc-in [:hookSpecificOutput :updatedInput] {:file_path file_path
-                                                                   :content fixed-content})))
-              (do
-                (log-msg "  Fix failed, denying write")
-                (-> base-output
-                    (assoc-in [:hookSpecificOutput :permissionDecision] "deny")
-                    (assoc-in [:hookSpecificOutput :permissionDecisionReason] "Delimiter errors found and could not be auto-fixed"))))))
+          (if-let [fixed-content (fix-delimiters content)]
+            (do
+              (log-msg "  Fix successful, allowing write with updated content")
+              {:hookSpecificOutput
+               {:hookEventName "PreToolUse"
+                :updatedInput {:file_path file_path
+                               :content fixed-content}}})
+            (do
+              (log-msg "  Fix failed, denying write")
+              {:hookSpecificOutput
+               {:hookEventName "PreToolUse"
+                :permissionDecision "deny"
+                :permissionDecisionReason "Delimiter errors found and could not be auto-fixed"}})))
         (do
           (log-msg "  No delimiter errors, allowing write")
-          base-output)))))
+          nil)))))
 
 (defmethod process-hook ["PreToolUse" "Edit"]
   [{:keys [tool_input session_id]}]
-  (let [{:keys [file_path]} tool_input
-        base-output {:hookSpecificOutput
-                     {:hookEventName "PreToolUse"
-                      :permissionDecision "allow"}}]
-    (log-msg "PreEdit:" file_path)
-    (if-not (clojure-file? file_path)
-      (do
-        (log-msg "  Skipping non-Clojure file")
-        base-output)
+  (let [{:keys [file_path]} tool_input]
+    (when (clojure-file? file_path)
+      (log-msg "PreEdit: clojure" file_path)
       (try
         (let [backup (backup-file file_path session_id)]
           (log-msg "  Created backup:" backup)
-          base-output)
+          nil)
         (catch Exception e
           (log-msg "  Backup failed:" (.getMessage e))
-          base-output)))))
+          nil)))))
 
 (defmethod process-hook ["PostToolUse" "Write"]
   [{:keys [tool_input tool_response]}]
   (let [{:keys [file_path]} tool_input]
-    (log-msg "PostWrite:" file_path)
     (when (and (clojure-file? file_path) tool_response *enable-cljfmt*)
+      (log-msg "PostWrite: clojure cljfmt" file_path)
       (run-cljfmt file_path)
-      ;; Return nil to not interfere with the hook chain
       nil)))
 
 (defmethod process-hook ["PostToolUse" "Edit"]
   [{:keys [tool_input tool_response session_id]}]
-  (let [{:keys [file_path]} tool_input
-        ctx {:session-id session_id}
-        backup (tmp/backup-path ctx file_path)]
-    (log-msg "PostEdit:" file_path)
-    (if-not (and (clojure-file? file_path) tool_response)
-      nil
-      (let [file-content (slurp file_path)]
+  (let [{:keys [file_path]} tool_input]
+    (when (and (clojure-file? file_path) tool_response)
+      (log-msg "PostEdit: clojure " file_path)
+      (let [backup (tmp/backup-path {:session-id session_id} file_path)
+            file-content (slurp file_path)]
         (if (delimiter-error? file-content)
           (do
             (log-msg "  Delimiter error detected, attempting fix")
@@ -261,13 +243,9 @@
               (try
                 (log-msg "  Fix successful, applying fix and deleting backup")
                 (spit file_path fixed-content)
-                ;; Run cljfmt after successful delimiter fix
                 (when *enable-cljfmt*
                   (run-cljfmt file_path))
-                {:hookSpecificOutput
-                 {:hookEventName "PostToolUse"
-                  :additionalContext (str "Auto-fixed delimiter errors in " file_path
-                                          (when *enable-cljfmt* " and applied cljfmt formatting"))}}
+                nil
                 (finally
                   (delete-backup backup)))
               (do
@@ -275,16 +253,14 @@
                 (restore-file file_path backup)
                 {:decision "block"
                  :reason (str "Delimiter errors could not be auto-fixed. File was restored from backup to previous state: " file_path)
-                 :hookSpecificOutput {:hookEventName "PostToolUse"
-                                      :additionalContext "There are delimiter errors in the file. So we restored from backup."}})))
+                 :hookSpecificOutput
+                 {:hookEventName "PostToolUse"
+                  :additionalContext "There are delimiter errors in the file. So we restored from backup."}})))
           (try
             (log-msg "  No delimiter errors, deleting backup")
-            ;; Run cljfmt even when no delimiter errors
             (when *enable-cljfmt*
               (run-cljfmt file_path))
-            {:reason (str "No delimiter errors were found in the file."
-                          (when *enable-cljfmt* " Applied cljfmt formatting."))
-             :hookSpecificOutput {:hookEventName "PostToolUse"}}
+            nil
             (finally
               (delete-backup backup))))))))
 
@@ -300,11 +276,9 @@
         (log-msg "  Errors during cleanup:")
         (doseq [{:keys [path error]} (:errors report)]
           (log-msg "    " path "-" error)))
-      ;; SessionEnd hooks use simpler response format (no hookSpecificOutput)
       nil)
     (catch Exception e
       (log-msg "  Unexpected error during cleanup:" (.getMessage e))
-      ;; Even on complete failure, return nil (success)
       nil)))
 
 (defn -main [& args]
