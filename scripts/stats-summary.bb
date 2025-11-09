@@ -52,10 +52,17 @@
 (defn print-summary
   "Print summary statistics"
   [entries]
-  (let [total (count entries)
-        by-event-type (count-by :event-type entries)
-        by-hook-event (count-by :hook-event entries)
-        by-file (->> entries
+  (let [;; Separate hook-level and parse-level events
+        hook-events (filter :hook-event entries)
+        parse-events (filter #(= :delimiter-parse-error (:event-type %)) entries)
+
+        total (count entries)
+        hook-total (count hook-events)
+        parse-total (count parse-events)
+
+        by-event-type (count-by :event-type hook-events)
+        by-hook-event (count-by :hook-event hook-events)
+        by-file (->> hook-events
                      (group-by :file-path)
                      (map (fn [[k v]] [k (count v)]))
                      (sort-by second >)
@@ -66,32 +73,53 @@
     (println (str/join (repeat 60 "=")))
     (println)
     (println "Total Events:" total)
+    (println "  Hook-level events:" hook-total)
+    (println "  Parse errors:     " parse-total)
 
-    (print-section "Events by Type")
-    (doseq [[event-type cnt] by-event-type]
-      (let [pct (if (pos? total)
-                  (format "%.1f%%" (* 100.0 (/ cnt total)))
-                  "0.0%")]
-        (println (format "  %-22s %5d  (%6s)" (name event-type) cnt pct))))
+    (when (pos? hook-total)
+      (print-section "Events by Type (Hook-Level)")
+      (doseq [[event-type cnt] by-event-type]
+        (let [pct (if (pos? hook-total)
+                    (format "%.1f%%" (* 100.0 (/ cnt hook-total)))
+                    "0.0%")]
+          (println (format "  %-22s %5d  (%6s)" (name event-type) cnt pct))))
 
-    (print-section "Events by Hook")
-    (doseq [[hook-event cnt] by-hook-event]
-      (println (format "  %-22s %5d" hook-event cnt)))
+      (print-section "Events by Hook")
+      (doseq [[hook-event cnt] by-hook-event]
+        (println (format "  %-22s %5d" hook-event cnt)))
 
-    (when (seq by-file)
-      (print-section "Top 10 Files by Event Count")
-      (doseq [[file-path cnt] by-file]
-        (let [short-path (if (> (count file-path) 50)
-                           (str "..." (subs file-path (- (count file-path) 47)))
-                           file-path)]
-          (println (format "  %5d  %s" cnt short-path)))))
+      (when (seq by-file)
+        (print-section "Top 10 Files by Event Count")
+        (doseq [[file-path cnt] by-file]
+          (let [short-path (if (> (count file-path) 50)
+                             (str "..." (subs file-path (- (count file-path) 47)))
+                             file-path)]
+            (println (format "  %5d  %s" cnt short-path))))))
+
+    (when (pos? parse-total)
+      (print-section "Parse Errors")
+      (println (format "  Total parse errors: %5d" parse-total))
+      (let [by-message (->> parse-events
+                            (group-by :ex-message)
+                            (map (fn [[k v]] [k (count v)]))
+                            (sort-by second >)
+                            (take 5))]
+        (when (seq by-message)
+          (println)
+          (println "  Most common parse errors:")
+          (doseq [[msg cnt] by-message]
+            (let [short-msg (if (> (count msg) 60)
+                              (str (subs msg 0 57) "...")
+                              msg)]
+              (println (format "    %3d  %s" cnt short-msg)))))))
 
     (println)))
 
 (defn calculate-success-rate
-  "Calculate delimiter fix success rate"
+  "Calculate delimiter fix success rate (hook-level events only)"
   [entries]
-  (let [by-type (count-by :event-type entries)
+  (let [hook-events (filter :hook-event entries)
+        by-type (count-by :event-type hook-events)
         errors (get by-type :delimiter-error 0)
         fixed (get by-type :delimiter-fixed 0)
         failed (get by-type :delimiter-fix-failed 0)

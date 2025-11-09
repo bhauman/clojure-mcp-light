@@ -39,23 +39,21 @@
     (when parent-dir
       (.mkdirs parent-dir))))
 
-(defn log-event!
-  "Log a delimiter event to the stats file.
+(defn log-stats!
+  "Low-level stats logging function that accepts arbitrary EDN data.
 
   Parameters:
-  - event-type: keyword like :delimiter-error, :delimiter-fixed, :delimiter-fix-failed, :delimiter-ok
-  - hook-event: string like \"PreToolUse\" or \"PostToolUse\"
-  - file-path: string path to the file being processed
+  - event-type: keyword describing the event
+  - data: map of additional data to include in the log entry
 
-  Uses binding with timbre/*config* to set up a minimal logging config with file locking."
-  [event-type hook-event file-path]
+  Automatically adds :event-type and :timestamp to the data map."
+  [event-type data]
   (when *enable-stats*
     (try
       (ensure-parent-dir stats-file-path)
-      (let [entry {:event-type event-type
-                   :hook-event hook-event
-                   :timestamp (timestamp-iso8601)
-                   :file-path file-path}
+      (let [entry (merge {:event-type event-type
+                          :timestamp (timestamp-iso8601)}
+                         data)
             stats-config {:min-level :trace
                           :appenders {:stats (assoc
                                               (timbre/spit-appender {:fname stats-file-path})
@@ -66,3 +64,16 @@
       (catch Exception e
         ;; Use parent config for error logging
         (timbre/error "Failed to log stats event:" (.getMessage e))))))
+
+(defn log-event!
+  "Log a delimiter event to the stats file.
+
+  Parameters:
+  - event-type: keyword like :delimiter-error, :delimiter-fixed, :delimiter-fix-failed, :delimiter-ok
+  - hook-event: string like \"PreToolUse:Write\" or \"PostToolUse:Edit\"
+  - file-path: string path to the file being processed
+
+  Uses log-stats! internally with hook-event and file-path context."
+  [event-type hook-event file-path]
+  (log-stats! event-type {:hook-event hook-event
+                          :file-path file-path}))

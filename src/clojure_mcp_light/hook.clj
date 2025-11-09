@@ -5,7 +5,8 @@
             [clojure.java.io :as io]
             [clojure.java.shell :refer [sh]]
             [clojure.tools.cli :refer [parse-opts]]
-            [clojure-mcp-light.delimiter-repair :refer [delimiter-error? fix-delimiters]]
+            [clojure-mcp-light.delimiter-repair
+             :refer [delimiter-error? fix-delimiters actual-delimiter-error?]]
             [clojure-mcp-light.stats :as stats]
             [clojure-mcp-light.tmp :as tmp]
             [taoensso.timbre :as timbre]))
@@ -183,19 +184,22 @@
     (when (clojure-file? file_path)
       (timbre/debug "PreWrite: clojure" file_path)
       (if (delimiter-error? content)
-        (do
-          (stats/log-event! :delimiter-error "PreToolUse:Write" file_path)
+        (let [actual-error? (actual-delimiter-error? content)]
+          (when actual-error?
+            (stats/log-event! :delimiter-error "PreToolUse:Write" file_path))
           (timbre/debug "  Delimiter error detected, attempting fix")
           (if-let [fixed-content (fix-delimiters content)]
             (do
-              (stats/log-event! :delimiter-fixed "PreToolUse:Write" file_path)
+              (when actual-error?
+                (stats/log-event! :delimiter-fixed "PreToolUse:Write" file_path))
               (timbre/debug "  Fix successful, allowing write with updated content")
               {:hookSpecificOutput
                {:hookEventName "PreToolUse"
                 :updatedInput {:file_path file_path
                                :content fixed-content}}})
             (do
-              (stats/log-event! :delimiter-fix-failed "PreToolUse:Write" file_path)
+              (when actual-error?
+                (stats/log-event! :delimiter-fix-failed "PreToolUse:Write" file_path))
               (timbre/debug "  Fix failed, denying write")
               {:hookSpecificOutput
                {:hookEventName "PreToolUse"
@@ -235,12 +239,14 @@
       (let [backup (tmp/backup-path {:session-id session_id} file_path)
             file-content (slurp file_path)]
         (if (delimiter-error? file-content)
-          (do
-            (stats/log-event! :delimiter-error "PostToolUse:Edit" file_path)
+          (let [actual-error? (actual-delimiter-error? file-content)]
+            (when actual-error?
+              (stats/log-event! :delimiter-error "PostToolUse:Edit" file_path))
             (timbre/debug "  Delimiter error detected, attempting fix")
             (if-let [fixed-content (fix-delimiters file-content)]
               (try
-                (stats/log-event! :delimiter-fixed "PostToolUse:Edit" file_path)
+                (when actual-error?
+                  (stats/log-event! :delimiter-fixed "PostToolUse:Edit" file_path))
                 (timbre/debug "  Fix successful, applying fix and deleting backup")
                 (spit file_path fixed-content)
                 (when *enable-cljfmt*
@@ -249,7 +255,8 @@
                 (finally
                   (delete-backup backup)))
               (do
-                (stats/log-event! :delimiter-fix-failed "PostToolUse:Edit" file_path)
+                (when actual-error?
+                  (stats/log-event! :delimiter-fix-failed "PostToolUse:Edit" file_path))
                 (timbre/debug "  Fix failed, restoring from backup:" backup)
                 (restore-file file_path backup)
                 {:decision "block"

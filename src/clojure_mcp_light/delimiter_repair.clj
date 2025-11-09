@@ -2,7 +2,9 @@
   "Delimiter error detection and repair functions using edamame and parinfer-rust"
   (:require [edamame.core :as e]
             [clojure.java.shell :as shell]
-            [cheshire.core :as json]))
+            [cheshire.core :as json]
+            [clojure-mcp-light.stats :as stats]
+            [taoensso.timbre :as timbre]))
 
 (def ^:dynamic *signal-on-bad-parse* true)
 
@@ -22,22 +24,40 @@
                                           ;; Common ClojureScript/EDN tags - treat as no-op for delimiter checking
                                            {'js (fn [x] x)
                                             'jsx (fn [x] x)
+                                            'bb (fn [x] x)
                                             'queue (fn [x] x)
                                             'date (fn [x] x)})
                            :auto-resolve name})
     false ; No error = no delimiter error
     (catch clojure.lang.ExceptionInfo ex
-      (let [data (ex-data ex)]
-        (and (= :edamame/error (:type data))
-             (contains? data :edamame/opened-delimiter))))
-    (catch Exception _
+      (let [data (ex-data ex)
+            result (and (= :edamame/error (:type data))
+                        (contains? data :edamame/opened-delimiter))]
+        (when-not result
+          (when *signal-on-bad-parse*
+            (timbre/error "Delimiter parse error:" (ex-message ex) (ex-data ex))
+            (stats/log-stats! :delimiter-parse-error
+                              {:ex-message (ex-message ex)
+                               :ex-data (ex-data ex)})))
+        result))
+    (catch Exception e
+      (when *signal-on-bad-parse*
+        (timbre/error "Delimiter parse error:" (ex-message e))
+        (stats/log-stats! :delimiter-parse-error
+                          {:ex-message (ex-message e)}))
+
       ;; Experimentally going to return true in this case to
       ;; communication a parse failure we will run parinfer if this is
       ;; true just in case there is a delimiter error as well in the
       ;; file
 
       ;; running parinfer is a benign action most of the time
+
       *signal-on-bad-parse*)))
+
+(defn actual-delimiter-error? [s]
+  (binding [*signal-on-bad-parse* false]
+    (delimiter-error? s)))
 
 (defn parinfer-repair
   "Attempts to repair delimiter errors using parinfer-rust.
