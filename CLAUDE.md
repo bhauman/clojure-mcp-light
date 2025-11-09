@@ -27,9 +27,83 @@ bbin install . --as clj-nrepl-eval --main-opts '["-m" "clojure-mcp-light.nrepl-e
 ```
 
 ### Testing the Hook Manually
+
+Basic hook test without flags:
 ```bash
-echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | clj-paren-repair-claude-hook
+echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | bb -m clojure-mcp-light.hook
 ```
+
+Test hook with --cljfmt flag (requires cljfmt installed):
+```bash
+echo '{"hook_event_name":"PostToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"},"tool_response":"success"}' | bb -m clojure-mcp-light.hook -- --cljfmt
+```
+
+Test with logging enabled:
+```bash
+CML_ENABLE_LOGGING=true echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | bb -m clojure-mcp-light.hook -- --cljfmt
+```
+
+Show help:
+```bash
+bb -m clojure-mcp-light.hook -- --help
+```
+
+Note: After installing with bbin, you can use `clj-paren-repair-claude-hook` instead of `bb -m clojure-mcp-light.hook`.
+
+### Testing with Claude Code Integration
+
+To test the hooks with actual Write and Edit operations in Claude Code:
+
+1. **Update settings** to use the hook with desired flags in `.claude/settings.local.json`:
+```json
+{
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "Write|Edit|Bash",
+      "hooks": [{"type": "command", "command": "CML_ENABLE_LOGGING=true bb -m clojure-mcp-light.hook -- --cljfmt"}]
+    }],
+    "PostToolUse": [{
+      "matcher": "Edit|Write",
+      "hooks": [{"type": "command", "command": "CML_ENABLE_LOGGING=true bb -m clojure-mcp-light.hook -- --cljfmt"}]
+    }],
+    "SessionEnd": [{
+      "hooks": [{"type": "command", "command": "CML_ENABLE_LOGGING=true bb -m clojure-mcp-light.hook -- --cljfmt"}]
+    }]
+  }
+}
+```
+
+Note: For production use with bbin-installed commands, replace `bb -m clojure-mcp-light.hook` with `clj-paren-repair-claude-hook`.
+
+2. **Restart Claude Code** - Settings changes require a restart to take effect
+
+3. **Test Write operations** - Ask Claude to create a poorly formatted file:
+```clojure
+;; Example poorly formatted code
+(defn badly-formatted [x]
+(let [y (* x 2)]
+y))
+```
+
+4. **Verify formatting** - Check that the file was auto-formatted:
+```clojure
+;; Should be formatted to:
+(defn badly-formatted [x]
+  (let [y (* x 2)]
+    y))
+```
+
+5. **Check logs** - View hook execution logs:
+```bash
+tail -50 hook-logs/clj-paren-repair-hook.log
+```
+
+Look for log entries showing:
+- `PostWrite:` or `PostEdit:` with file path
+- `Running cljfmt fix on:` with file path
+- `cljfmt succeeded` or `cljfmt failed`
+
+6. **Test Edit operations** - Ask Claude to modify an existing Clojure file and verify the PostToolUse hook runs cljfmt
 
 ### Testing nREPL Evaluation
 ```bash
@@ -39,6 +113,27 @@ clj -Sdeps '{:deps {nrepl/nrepl {:mvn/version "1.0.0"}}}' -M -m nrepl.cmdline
 # In another terminal, evaluate code
 clj-nrepl-eval "(+ 1 2 3)"
 ```
+
+### Troubleshooting Hook Tests
+
+**Hook errors during testing:**
+- Check that all required tools are on PATH (parinfer-rust, cljfmt if using --cljfmt)
+- Verify the hook compiles: `bb -m clojure-mcp-light.hook -- --help`
+- Check logs for detailed error messages: `tail -f hook-logs/clj-paren-repair-hook.log`
+- Test directly with echo: `echo '{}' | bb -m clojure-mcp-light.hook -- --cljfmt`
+
+**cljfmt not running:**
+- Ensure cljfmt is installed: `which cljfmt`
+- Check that logging is enabled: `CML_ENABLE_LOGGING=true` in hook command
+- Verify PostToolUse matcher includes both "Edit|Write"
+- Check logs to confirm hook is being called: `grep "Running cljfmt" hook-logs/clj-paren-repair-hook.log`
+- Restart Claude Code after settings changes
+
+**Changes not taking effect:**
+- Always restart Claude Code after modifying `.claude/settings.local.json`
+- For development, use `bb -m clojure-mcp-light.hook` to avoid needing bbin reinstalls
+- For production, install with bbin and use `clj-paren-repair-claude-hook`
+- Verify file extensions are processed: `.clj`, `.cljs`, `.cljc`, `.bb`, `.edn`
 
 ## Architecture
 
@@ -53,6 +148,8 @@ clj-nrepl-eval "(+ 1 2 3)"
 - Intercepts Write and Edit tool operations via PreToolUse/PostToolUse hooks
 - For Write: detects and fixes delimiter errors before writing, blocks write if unfixable
 - For Edit: creates backup before edit, auto-fixes after edit, restores from backup if unfixable
+- Optional `--cljfmt` flag enables automatic code formatting with cljfmt after write/edit operations
+- CLI argument parsing via `tools.cli` with `handle-cli-args` function
 - Uses multimethod dispatch on `[hook_event_name tool_name]` pairs
 - Communicates fixes back to Claude via hook response format
 
@@ -212,6 +309,15 @@ Hooks must return JSON matching Claude Code's hook protocol:
 
 ## Environment Variables
 
+### CML_ENABLE_LOGGING
+- **Set by**: User in hook command or shell environment
+- **Used by**: hook.clj (`*enable-logging*` dynamic var)
+- **Purpose**: Enable detailed logging of hook operations to file
+- **Format**: String "true" to enable (e.g., `CML_ENABLE_LOGGING=true`)
+- **Log file**: `hook-logs/clj-paren-repair-hook.log` (relative to project root)
+- **Usage**: `CML_ENABLE_LOGGING=true bb -m clojure-mcp-light.hook -- --cljfmt`
+- **Logs include**: CLI args, parsed options, hook events, cljfmt execution, errors
+
 ### CML_CLAUDE_CODE_SESSION_ID
 - **Set by**: PreToolUse Bash hook (automatically prepended to all bash commands)
 - **Used by**: tmp namespace (`editor-scope-id` function), nREPL eval, hook system
@@ -240,6 +346,7 @@ Hooks must return JSON matching Claude Code's hook protocol:
 
 External tools required:
 - **parinfer-rust** - Must be on PATH for delimiter repair
+- **cljfmt** - (Optional) Must be on PATH for `--cljfmt` flag functionality
 - **babashka** - For running as a script
 - **bbin** - For installation
 
