@@ -46,7 +46,7 @@ echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_pa
 cat ~/.clojure-mcp-light/stats.log
 
 # Use custom stats file path
-echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | bb -m clojure-mcp-light.hook -- --stats ~/my-stats.edn
+echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | bb -m clojure-mcp-light.hook -- --stats --stats-file ~/my-stats.edn
 # Check custom stats log:
 cat ~/my-stats.edn
 ```
@@ -91,7 +91,7 @@ To test the hooks with actual Write and Edit operations in Claude Code:
 }
 ```
 
-Note: The `--stats` flag enables tracking of delimiter events. Use `--stats` alone for the default location (`~/.clojure-mcp-light/stats.log`) or `--stats [PATH]` to specify a custom location. Paths support tilde expansion (`~/file.log`) and relative paths (`../../stats.edn`).
+Note: The `--stats` flag enables tracking of delimiter events. Use `--stats` alone for the default location (`~/.clojure-mcp-light/stats.log`) or `--stats --stats-file PATH` to specify a custom location. Paths support tilde expansion (`~/file.log`) and relative paths (`../../stats.edn`).
 
 Note: For production use with bbin-installed commands, replace `bb -m clojure-mcp-light.hook` with `clj-paren-repair-claude-hook`.
 
@@ -328,13 +328,13 @@ Enable delimiter event tracking with the `--stats` flag to analyze LLM-generated
 bb -m clojure-mcp-light.hook -- --stats
 
 # Use custom absolute path
-bb -m clojure-mcp-light.hook -- --stats /tmp/my-stats.log
+bb -m clojure-mcp-light.hook -- --stats --stats-file /tmp/my-stats.log
 
 # Use tilde expansion
-bb -m clojure-mcp-light.hook -- --stats ~/project-stats.edn
+bb -m clojure-mcp-light.hook -- --stats --stats-file ~/project-stats.edn
 
 # Use relative path
-bb -m clojure-mcp-light.hook -- --stats ../../stats.edn
+bb -m clojure-mcp-light.hook -- --stats --stats-file ../../stats.edn
 ```
 
 **Event types tracked:**

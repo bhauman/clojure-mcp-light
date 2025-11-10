@@ -1,6 +1,7 @@
 (ns clojure-mcp-light.hook
   "Claude Code hook for delimiter error detection and repair"
-  (:require [cheshire.core :as json]
+  (:require [babashka.fs :as fs]
+            [cheshire.core :as json]
             [clojure.string :as string]
             [clojure.java.io :as io]
             [clojure.java.shell :refer [sh]]
@@ -24,8 +25,12 @@
 
 (def cli-options
   [[nil "--cljfmt" "Enable cljfmt formatting on files after edit/write"]
-   [nil "--stats [PATH]" "Enable statistics tracking for delimiter events (default: ~/.clojure-mcp-light/stats.log)"
-    :id :stats]
+   [nil "--stats" "Enable statistics tracking for delimiter events (default: ~/.clojure-mcp-light/stats.log)"
+    :id :stats
+    :default false]
+   [nil "--stats-file PATH" "Path to stats file (only used when --stats is enabled)"
+    :id :stats-file
+    :default (str (fs/path (fs/home) ".clojure-mcp-light" "stats.log"))]
    [nil "--log-level LEVEL" "Set log level for file logging"
     :id :log-level
     :parse-fn keyword
@@ -43,8 +48,9 @@
        "\n"
        "Options:\n"
        "      --cljfmt              Enable cljfmt formatting on files after edit/write\n"
-       "      --stats [PATH]        Enable statistics tracking for delimiter events\n"
+       "      --stats               Enable statistics tracking for delimiter events\n"
        "                            (default: ~/.clojure-mcp-light/stats.log)\n"
+       "      --stats-file PATH     Path to stats file (only used when --stats is enabled)\n"
        "      --log-level LEVEL     Set log level for file logging\n"
        "                            Levels: trace, debug, info, warn, error, fatal, report\n"
        "      --log-file PATH       Path to log file (default: ./.clojure-mcp-light-hooks.log)\n"
@@ -380,12 +386,8 @@
         log-level (:log-level options)
         log-file (:log-file options)
         enable-logging? (some? log-level)
-        stats-opt (:stats options)
-        enable-stats? (some? stats-opt)
-        stats-path (if (string? stats-opt)
-                     (stats/normalize-stats-path stats-opt)
-                     (let [home (System/getProperty "user.home")]
-                       (str home "/.clojure-mcp-light/stats.log")))]
+        enable-stats? (:stats options)
+        stats-path (stats/normalize-stats-path (:stats-file options))]
 
     (timbre/set-config!
      {:appenders {:spit (assoc
