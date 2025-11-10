@@ -91,3 +91,24 @@
   [event-type hook-event file-path]
   (log-stats! event-type {:hook-event hook-event
                           :file-path file-path}))
+
+(defn log-edit-event!
+  "Log an edit validation event to the stats file.
+
+  Parameters:
+  - event-type: keyword like :edit-submitted, :edit-match-success, :edit-match-failed, :edit-match-success-sliding, :edit-match-success-normalized
+  - hook-event: string like \"PreToolUse:Edit\"
+  - file-path: string path to the file being edited
+  - match-count: number of times old-string was found (optional)
+  - reason: failure reason string (optional, for failed edits)
+  - indentation-offset: spaces adjusted for sliding match (optional)
+  - normalized: boolean indicating if line endings were normalized (optional)
+
+  Uses log-stats! internally with hook-event, file-path, match-count, reason, indentation-offset, and normalized context."
+  [event-type hook-event file-path & {:keys [match-count reason indentation-offset normalized]}]
+  (log-stats! event-type (cond-> {:hook-event hook-event
+                                  :file-path file-path}
+                           (some? match-count) (assoc :match-count match-count)
+                           (some? reason) (assoc :reason reason)
+                           (some? indentation-offset) (assoc :indentation-offset indentation-offset)
+                           (some? normalized) (assoc :normalized normalized))))
