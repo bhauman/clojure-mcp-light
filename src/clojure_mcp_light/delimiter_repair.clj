@@ -18,15 +18,9 @@
   [s]
   (try
     (e/parse-string-all s {:all true
-                           :features #{:clj :cljs :cljr :default}
+                           :features #{:bb :clj :cljs :cljr :default} #_(constantly true)
                            :read-cond :allow
-                           :readers (merge *data-readers*
-                                          ;; Common ClojureScript/EDN tags - treat as no-op for delimiter checking
-                                           {'js (fn [x] x)
-                                            'jsx (fn [x] x)
-                                            'bb (fn [x] x)
-                                            'queue (fn [x] x)
-                                            'date (fn [x] x)})
+                           :readers (fn [_tag] (fn [data] data))
                            :auto-resolve name})
     false ; No error = no delimiter error
     (catch clojure.lang.ExceptionInfo ex

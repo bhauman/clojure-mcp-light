@@ -11,7 +11,9 @@
        (let [name (.getName f)]
          (or (.endsWith name ".clj")
              (.endsWith name ".cljs")
-             (.endsWith name ".cljc")))))
+             (.endsWith name ".cljc")
+             (.endsWith name ".cljr")
+             (.endsWith name ".bb")))))
 
 (defn find-clojure-files [dir]
   (let [dir-file (io/file dir)]
@@ -29,13 +31,9 @@
         content (slurp file)]
     (try
       (e/parse-string-all content {:all true
-                                   :features #{:clj :cljs :cljr :default}
+                                   :features #{:bb :clj :cljs :cljr :default} #_(constantly true)
                                    :read-cond :allow
-                                   :readers (merge *data-readers*
-                                                   {'js (fn [x] x)
-                                                    'jsx (fn [x] x)
-                                                    'queue (fn [x] x)
-                                                    'date (fn [x] x)})
+                                   :readers (fn [_tag] (fn [data] data))
                                    :auto-resolve name})
       {:status :success :file path}
       (catch clojure.lang.ExceptionInfo ex
