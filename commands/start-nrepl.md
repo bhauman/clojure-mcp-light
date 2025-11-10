@@ -55,25 +55,14 @@ Use the Bash tool with `run_in_background: true` to start the server.
 3. Parse the port number from output like: "nREPL server started on port 54321..."
 4. Extract the numeric port value
 
-## Step 6: Create .nrepl-port File (Optional)
-
-Optionally write the port to `.nrepl-port` for compatibility with other tools:
-```bash
-echo "PORT_NUMBER" > .nrepl-port
-```
-
-Replace PORT_NUMBER with the actual port extracted from the output.
-
-Note: This is optional as `clj-nrepl-eval` requires explicit `--port` flag.
-
-## Step 7: Test Connection
+## Step 6: Test Connection
 
 Verify the connection by running a test evaluation:
 ```bash
 clj-nrepl-eval -p PORT "(+ 1 2 3)"
 ```
 
-## Step 8: Report to User
+## Step 7: Report to User
 
 Display to the user:
 - The port number the server is running on
