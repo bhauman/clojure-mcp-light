@@ -52,9 +52,10 @@
 (defn print-summary
   "Print summary statistics"
   [entries]
-  (let [;; Separate delimiter and cljfmt events
+  (let [;; Separate delimiter, cljfmt, and edit events
         delimiter-events (filter :hook-event entries)
         cljfmt-events (filter #(str/starts-with? (name (:event-type %)) "cljfmt-") entries)
+        edit-events (filter #(str/starts-with? (name (:event-type %)) "edit-") entries)
         parse-events (filter #(= :delimiter-parse-error (:event-type %)) entries)
 
         total (count entries)
@@ -88,7 +89,18 @@
           cljfmt-fix-failed (get cljfmt-by-type :cljfmt-fix-failed 0)
           cljfmt-check-errors (get cljfmt-by-type :cljfmt-check-error 0)
           cljfmt-total-checked (+ cljfmt-already-formatted cljfmt-needed-formatting cljfmt-check-errors)
-          cljfmt-total-fix-attempts (+ cljfmt-fix-succeeded cljfmt-fix-failed)]
+          cljfmt-total-fix-attempts (+ cljfmt-fix-succeeded cljfmt-fix-failed)
+
+          ;; Calculate edit validation metrics
+          edit-by-type (count-by :event-type edit-events)
+          edit-match-success (get edit-by-type :edit-match-success 0)
+          edit-match-success-sliding (get edit-by-type :edit-match-success-sliding 0)
+          edit-match-success-normalized (get edit-by-type :edit-match-success-normalized 0)
+          edit-match-failed (get edit-by-type :edit-match-failed 0)
+          edit-total-validations (+ edit-match-success edit-match-success-sliding
+                                    edit-match-success-normalized edit-match-failed)
+          edit-total-successes (+ edit-match-success edit-match-success-sliding
+                                  edit-match-success-normalized)]
 
       (println)
       (println "clojure-mcp-light Utility Validation")
@@ -151,6 +163,36 @@
                        (if (pos? cljfmt-total-fix-attempts)
                          (* 100.0 (/ cljfmt-fix-failed cljfmt-total-fix-attempts))
                          0.0)))
+
+      ;; Edit Validation Metrics
+      (when (pos? edit-total-validations)
+        (print-section "Edit Validation Metrics")
+        (println (format "  Total Edit Validations:     %5d" edit-total-validations))
+        (println (format "  Exact Match:                %5d  (%5.1f%% of total)"
+                         edit-match-success
+                         (if (pos? edit-total-validations)
+                           (* 100.0 (/ edit-match-success edit-total-validations))
+                           0.0)))
+        (println (format "  Match with Sliding:         %5d  (%5.1f%% of total)"
+                         edit-match-success-sliding
+                         (if (pos? edit-total-validations)
+                           (* 100.0 (/ edit-match-success-sliding edit-total-validations))
+                           0.0)))
+        (println (format "  Match with Normalization:   %5d  (%5.1f%% of total)"
+                         edit-match-success-normalized
+                         (if (pos? edit-total-validations)
+                           (* 100.0 (/ edit-match-success-normalized edit-total-validations))
+                           0.0)))
+        (println (format "  Match Failed:               %5d  (%5.1f%% of total)"
+                         edit-match-failed
+                         (if (pos? edit-total-validations)
+                           (* 100.0 (/ edit-match-failed edit-total-validations))
+                           0.0)))
+        (println (format "  Overall Success Rate:       %5d  (%5.1f%% of total)"
+                         edit-total-successes
+                         (if (pos? edit-total-validations)
+                           (* 100.0 (/ edit-total-successes edit-total-validations))
+                           0.0))))
 
       ;; Category Breakdown
       (when (pos? total-operations)
