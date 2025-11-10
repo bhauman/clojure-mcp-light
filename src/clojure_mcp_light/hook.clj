@@ -286,10 +286,20 @@
       ;; Log edit submission and validate
       (stats/log-edit-event! :edit-submitted "PreToolUse:Edit" file_path)
 
-      (try
-        ;; Validate edit and log results
-        (validate-and-log-edit file_path old_string new_string replace_all)
+      ;; Validate edit and log results
+      ;; this is only for tracking accuracy of submitted edits
+      ;; this will be helpful in making future descisions about
+      ;; how to handle edits
+      ;; most importantly: Is it worth it to try clj-rewrite edits
+      ;; at all anymore?
+      (when stats/*enable-stats*
+        (try
+          (validate-and-log-edit file_path old_string new_string replace_all)
+          (catch Exception e
+            (timbre/error "  Error: Validate Edit failed" (.getMessage e))
+            nil)))
 
+      (try
         ;; Create backup (existing behavior)
         (let [backup (backup-file file_path session_id)]
           (timbre/debug "  Created backup:" backup)
