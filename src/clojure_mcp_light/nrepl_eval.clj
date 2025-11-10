@@ -137,7 +137,6 @@
    - :host       - Host string
    - :port       - Port number
    - :session-id - Session ID to validate
-   - :file-path  - Path to session file (not used, kept for future compatibility)
 
    Returns map with :status key:
    - {:status :active :host ... :port ... :session-id ...} if connection is valid
@@ -145,7 +144,7 @@
 
    Does not clean up stale session files to preserve session persistence across
    server restarts. Use --reset-session to explicitly clean up sessions."
-  [{:keys [host port session-id file-path]}]
+  [{:keys [host port session-id]}]
   (try
     (if-let [active-sessions (get-active-sessions host port)]
       (if (some #{session-id} active-sessions)
