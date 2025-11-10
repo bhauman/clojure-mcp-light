@@ -52,17 +52,19 @@
 (defn print-summary
   "Print summary statistics"
   [entries]
-  (let [;; Separate hook-level and parse-level events
-        hook-events (filter :hook-event entries)
+  (let [;; Separate delimiter and cljfmt events
+        delimiter-events (filter :hook-event entries)
+        cljfmt-events (filter #(str/starts-with? (name (:event-type %)) "cljfmt-") entries)
         parse-events (filter #(= :delimiter-parse-error (:event-type %)) entries)
 
         total (count entries)
-        hook-total (count hook-events)
+        delimiter-total (count delimiter-events)
+        cljfmt-total (count cljfmt-events)
         parse-total (count parse-events)
 
-        by-event-type (count-by :event-type hook-events)
-        by-hook-event (count-by :hook-event hook-events)
-        by-file (->> hook-events
+        by-event-type (count-by :event-type delimiter-events)
+        by-hook-event (count-by :hook-event delimiter-events)
+        by-file (->> delimiter-events
                      (group-by :file-path)
                      (map (fn [[k v]] [k (count v)]))
                      (sort-by second >)
@@ -73,14 +75,15 @@
     (println (str/join (repeat 60 "=")))
     (println)
     (println "Total Events:" total)
-    (println "  Hook-level events:" hook-total)
+    (println "  Delimiter events: " delimiter-total)
+    (println "  Cljfmt events:    " cljfmt-total)
     (println "  Parse errors:     " parse-total)
 
-    (when (pos? hook-total)
-      (print-section "Events by Type (Hook-Level)")
+    (when (pos? delimiter-total)
+      (print-section "Events by Type (Delimiter)")
       (doseq [[event-type cnt] by-event-type]
-        (let [pct (if (pos? hook-total)
-                    (format "%.1f%%" (* 100.0 (/ cnt hook-total)))
+        (let [pct (if (pos? delimiter-total)
+                    (format "%.1f%%" (* 100.0 (/ cnt delimiter-total)))
                     "0.0%")]
           (println (format "  %-22s %5d  (%6s)" (name event-type) cnt pct))))
 
