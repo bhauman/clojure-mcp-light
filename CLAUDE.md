@@ -104,7 +104,7 @@ y))
 
 5. **Check logs** - View hook execution logs:
 ```bash
-tail -50 hook-logs/clj-paren-repair-hook.log
+tail -50 .clojure-mcp-light-hooks.log
 ```
 
 Look for log entries showing:
@@ -128,14 +128,14 @@ clj-nrepl-eval "(+ 1 2 3)"
 **Hook errors during testing:**
 - Check that all required tools are on PATH (parinfer-rust, cljfmt if using --cljfmt)
 - Verify the hook compiles: `bb -m clojure-mcp-light.hook -- --help`
-- Check logs for detailed error messages: `tail -f hook-logs/clj-paren-repair-hook.log`
+- Check logs for detailed error messages: `tail -f .clojure-mcp-light-hooks.log`
 - Test directly with echo: `echo '{}' | bb -m clojure-mcp-light.hook -- --cljfmt`
 
 **cljfmt not running:**
 - Ensure cljfmt is installed: `which cljfmt`
 - Check that logging is enabled: `CML_ENABLE_LOGGING=true` in hook command
 - Verify PostToolUse matcher includes both "Edit|Write"
-- Check logs to confirm hook is being called: `grep "Running cljfmt" hook-logs/clj-paren-repair-hook.log`
+- Check logs to confirm hook is being called: `grep "Running cljfmt" .clojure-mcp-light-hooks.log`
 - Restart Claude Code after settings changes
 
 **Changes not taking effect:**
@@ -375,10 +375,10 @@ bb -e "(require '[clojure.edn :as edn]) \
 
 ### CML_ENABLE_LOGGING
 - **Set by**: User in hook command or shell environment
-- **Used by**: hook.clj (`*enable-logging*` dynamic var)
+- **Used by**: hook.clj (controls timbre logging)
 - **Purpose**: Enable detailed logging of hook operations to file
 - **Format**: String "true" to enable (e.g., `CML_ENABLE_LOGGING=true`)
-- **Log file**: `hook-logs/clj-paren-repair-hook.log` (relative to project root)
+- **Log file**: `.clojure-mcp-light-hooks.log` (relative to project root, configurable via --log-file)
 - **Usage**: `CML_ENABLE_LOGGING=true bb -m clojure-mcp-light.hook -- --cljfmt`
 - **Logs include**: CLI args, parsed options, hook events, cljfmt execution, errors
 
