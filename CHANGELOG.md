@@ -2,6 +2,68 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.0] - 2025-11-10
+
+### Summary
+
+This release introduces edit validation metrics, enhanced nREPL connection discovery, and improved statistics tracking. The most significant improvements are in understanding how well the delimiter repair and cljfmt formatting are working through comprehensive validation metrics and success rate tracking.
+
+### Added
+- **Edit validation metrics** - Track validation of completed edits to understand delimiter repair effectiveness
+  - New event types: `:edit-validated-ok`, `:edit-validated-error`, `:edit-validated-fixed`, `:edit-validated-fix-failed`
+  - Tracks whether PostToolUse hook successfully validates and fixes edited files
+  - Enables measurement of end-to-end edit quality and repair success rate
+  - Stats summary includes edit validation breakdown and success metrics
+
+- **Connection discovery for nREPL** - `--connected-ports` flag lists active nREPL connections
+  - Displays all available nREPL servers with session information
+  - Helps users discover which ports they've previously connected to
+  - Makes `--port` requirement clearer by providing easy discovery mechanism
+  - Scans nREPL session files in session-scoped temp directory
+
+- **nREPL testing utilities** - Added `deps.edn` for connection testing
+  - Provides reproducible nREPL server setup for development and testing
+  - Documents port conventions (7890, 7891, 7892, etc.)
+  - Simplifies manual testing of nREPL evaluation features
+
+### Changed
+- **Required --port flag** - Made `--port` explicit and required for all nREPL operations
+  - Removed fallback to NREPL_PORT env var and .nrepl-port file
+  - Prevents confusion about which server is being used
+  - Clearer, more predictable behavior
+  - Use `--connected-ports` to discover available servers
+
+- **Enhanced stats tracking** - Improved cljfmt metrics with success/failure distinction
+  - Track `:cljfmt-fixed` (formatting applied successfully) separately from `:cljfmt-check-error` (formatting failed)
+  - More accurate success rates for formatting operations
+  - Stats summary shows cljfmt fix success rate
+
+- **Improved stats summary** - Refactored to focus on delimiter repair validation utility
+  - Clearer breakdown of Pre vs Post hook validation events
+  - Edit validation metrics highlighted as key quality indicators
+  - Better organization with validation-focused sections
+  - More actionable insights about delimiter repair effectiveness
+
+- **CLI option parsing** - Fixed `--stats` flag handling to properly support custom file paths
+  - Parse CLI options before processing hook input
+  - `--stats-file` now correctly accepts custom paths
+
+### Fixed
+- **Parser generalization** - Removed `file-path` parameter from `validate-stored-connection`
+  - Parser no longer requires file path context
+  - Cleaner API for connection validation
+  - Fixes unnecessary coupling between validation and file operations
+
+- **clj-kondo linting** - Fixed all linting warnings
+  - Cleaner codebase with zero linting issues
+  - Improved code quality and maintainability
+
+- **Test fixes** - Corrected test suite for recent API changes
+  - All tests passing
+  - Better test coverage for new features
+
+[0.1.0]: https://github.com/bhauman/clojure-mcp-light/releases/tag/v0.1.0
+
 ## [0.0.4-alpha] - 2025-11-09
 
 ### Summary
