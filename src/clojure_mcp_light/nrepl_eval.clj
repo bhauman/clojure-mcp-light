@@ -101,10 +101,13 @@
 
 (defn get-active-sessions
   "Get list of active session IDs from nREPL server.
-   Returns nil if unable to connect or on error."
+   Returns nil if unable to connect or on error.
+   Uses a 500ms timeout for connection and read operations."
   [host port]
   (try
-    (with-open [s (java.net.Socket. (or host "localhost") (coerce-long port))]
+    (with-open [s (java.net.Socket.)]
+      (.connect s (java.net.InetSocketAddress. (or host "localhost") (coerce-long port)) 500)
+      (.setSoTimeout s 500)
       (let [out (java.io.BufferedOutputStream. (.getOutputStream s))
             in (java.io.PushbackInputStream. (.getInputStream s))
             id (next-id)
@@ -184,6 +187,77 @@
          (map validate-stored-connection)
          (filter #(= :active (:status %)))
          vec)))
+
+;; Port discovery
+
+(defn read-nrepl-port-file
+  "Read port number from .nrepl-port file in current directory.
+   Returns nil if file doesn't exist or on error."
+  []
+  (try
+    (let [file (java.io.File. ".nrepl-port")]
+      (when (.exists file)
+        (parse-long (str/trim (slurp file)))))
+    (catch Exception _
+      nil)))
+
+(defn parse-lsof-ports
+  "Parse port numbers from lsof output.
+   Expects lines like: 'java    12345 user   49u  IPv4 0x1234  TCP *:7888 (LISTEN)'"
+  [lsof-output]
+  (when lsof-output
+    (->> (str/split-lines lsof-output)
+         (keep (fn [line]
+                 (when-let [[_ port] (re-find #"\*:(\d+)\s+\(LISTEN\)" line)]
+                   (parse-long port))))
+         distinct
+         vec)))
+
+(defn get-listening-jvm-ports
+  "Find ports where Java/Clojure/Babashka processes are listening.
+   Returns vector of port numbers, empty vector on error."
+  []
+  (try
+    (let [proc (.. (ProcessBuilder. ["sh" "-c" "lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | grep -Ei 'java|clojure|babashka|bb|nrepl'"])
+                   (redirectErrorStream true)
+                   start)
+          _ (.waitFor proc 5 java.util.concurrent.TimeUnit/SECONDS)
+          output (slurp (.getInputStream proc))]
+      (or (parse-lsof-ports output) []))
+    (catch Exception _
+      [])))
+
+(defn discover-nrepl-ports
+  "Discover potential nREPL ports by:
+   1. Checking .nrepl-port file in current directory
+   2. Finding Java/Clojure/Babashka processes listening on TCP ports (lsof)
+   3. Validating discovered ports by checking if they respond to ls-sessions
+
+   Returns vector of maps with:
+   - :host - Host string (always \"localhost\")
+   - :port - Port number
+   - :source - How port was discovered (:nrepl-port-file or :lsof)
+   - :valid - Boolean indicating if port responds to nREPL ls-sessions op"
+  []
+  (let [;; Collect port candidates
+        port-file-port (read-nrepl-port-file)
+        lsof-ports (get-listening-jvm-ports)
+
+        ;; Combine and deduplicate
+        all-ports (distinct (concat (when port-file-port [port-file-port])
+                                    lsof-ports))
+
+        ;; Validate each port
+        results (for [port all-ports]
+                  (let [source (if (= port port-file-port) :nrepl-port-file :lsof)
+                        sessions (get-active-sessions "localhost" port)
+                        valid (some? sessions)]
+                    {:host "localhost"
+                     :port port
+                     :source source
+                     :valid valid
+                     :session-count (if sessions (count sessions) 0)}))]
+    (vec results)))
 
 ;; Utility functions
 
