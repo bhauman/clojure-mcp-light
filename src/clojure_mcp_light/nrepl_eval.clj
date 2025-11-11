@@ -185,56 +185,6 @@
          (filter #(= :active (:status %)))
          vec)))
 
-(defn eval-expr
-  "Execute :expr in nREPL on given :host (defaults to localhost)
-  and :port. Returns map with :vals. Prints any output to *out*.
-
-  :vals is a vector with eval results from all the top-level
-  forms in the :expr. See the README for an example.
-
-  Uses persistent sessions: reuses existing session ID from per-target session file
-  or creates a new one if none exists. Session persists across invocations."
-  [{:keys [host port expr]}]
-  (let [fixed-expr (or (fix-delimiters expr) expr)
-        host (or host "localhost")]
-    (with-open [s (java.net.Socket. host (coerce-long port))]
-      (let [out (java.io.BufferedOutputStream. (.getOutputStream s))
-            in (java.io.PushbackInputStream. (.getInputStream s))
-            ;; Try to reuse existing session or create new one
-            existing-session (slurp-nrepl-session host port)
-            ;; Validate session on same socket
-            validated-session (validate-session-on-socket out in existing-session)
-            session (if validated-session
-                      validated-session
-                      (let [_ (when (and existing-session (not validated-session))
-                                (delete-nrepl-session host port))
-                            id (next-id)
-                            _ (write-bencode-msg out {"op" "clone" "id" id})
-                            {new-session :new-session} (read-msg (b/read-bencode in))]
-                        (spit-nrepl-session new-session host port)
-                        new-session))
-            eval-id (next-id)
-            _ (write-bencode-msg out {"op" "eval" "code" fixed-expr "id" eval-id "session" session})]
-        (loop [m {:vals [] :responses []}]
-          (let [{:keys [status out value err] :as resp} (read-reply in session eval-id)]
-            (when out
-              (print out)
-              (flush))
-            (when err
-              (binding [*out* *err*]
-                (print err)
-                (flush)))
-            (when value
-              (println (str "=> " value))
-              (println "*============================*")
-              (flush))
-            (let [m (cond-> (update m :responses conj resp)
-                      value
-                      (update :vals conj value))]
-              (if (some #{"done"} status)
-                m
-                (recur m)))))))))
-
 ;; Utility functions
 
 (defn now-ms [] (System/currentTimeMillis))
@@ -342,17 +292,6 @@
                       (println "✋ Evaluation interrupted.")
                       result)))))))))))
 
-;; Main evaluation function with formatted output
-
-(defn eval-and-print
-  "Evaluate expression and print results with formatting.
-  Each result is printed as => <value> with dividing lines between them.
-  If timeout-ms is provided, will use timeout/interrupt handling."
-  [{:keys [timeout-ms] :as opts}]
-  (if timeout-ms
-    (eval-expr-with-timeout opts)
-    (eval-expr opts)))
-
 ;; ============================================================================
 ;; Command-line interface
 ;; ============================================================================
@@ -363,6 +302,7 @@
     :validate [#(> % 0) "Must be a positive number"]]
    ["-H" "--host HOST" "nREPL host (default: 127.0.0.1)"]
    ["-t" "--timeout MILLISECONDS" "Timeout in milliseconds (default: 120000)"
+    :default 120000
     :parse-fn parse-long
     :validate [#(> % 0) "Must be a positive number"]]
    ["-r" "--reset-session" "Reset the persistent nREPL session"]
@@ -482,10 +422,11 @@
           (println (str "Session reset for " host ":" port))
           ;; If code is provided, continue to evaluate it with new session
           (when-let [expr (get-code arguments)]
-            (eval-and-print {:host host
-                             :port port
-                             :expr expr
-                             :timeout-ms (:timeout options)})))
+            (eval-expr-with-timeout (cond-> {:host host
+                                             :port port
+                                             :expr expr}
+                                      (:timeout options)
+                                      (assoc :timeout-ms (:timeout options))))))
         (do
           (binding [*out* *err*]
             (println "Error: --port is required for --reset-session")
@@ -503,10 +444,11 @@
               (println (usage summary)))
             (System/exit 1))
           (if-let [port (:port options)]
-            (eval-and-print {:host (get-host options)
-                             :port port
-                             :expr code
-                             :timeout-ms (:timeout options)})
+            (eval-expr-with-timeout (cond-> {:host (get-host options)
+                                             :port port
+                                             :expr code}
+                                      (:timeout options)
+                                      (assoc :timeout-ms (:timeout options))))
             (do
               (binding [*out* *err*]
                 (println "Error: --port is required")
