@@ -21,37 +21,25 @@ The `clj-nrepl-eval` command evaluates Clojure code against an nREPL server. **S
 
 ## Instructions
 
-### 1. Display Actively Connected nREPL Sessions
+### 0. Ask the user about the nREPL server
 
-Before evaluating, you can check if you already have an active session on a port:
+Ask the user what nREPL port to connect to or if they would like you to
+start a nREPL server.
 
-```bash
-clj-nrepl-eval --connected-ports
-```
-
-This shows active nREPL sessions and their ports. Connections only
-appear in this list after you've evaluated code on that port at least once.
-
-**Important:** This only shows connections you have made, not all nREPL
-servers running on the system.
-
-### 2. Evaluate Clojure Code
+### 1. Evaluate Clojure Code
 
 > Evaluation automatically connects to the given port
 
 Use the `-p` flag to specify the port and pass your Clojure code:
 
-**As a command-line argument:**
+**Recommended: Use heredoc by default (provides cleaner, more readable output):**
 ```bash
-clj-nrepl-eval --port 7888 "(+ 1 2 3)"
+clj-nrepl-eval -p 7888 <<'EOF'
+(+ 1 2 3)
+EOF
 ```
 
-**Via stdin pipe:**
-```bash
-echo "(+ 1 2 3)" | clj-nrepl-eval -p 7888
-```
-
-**Via heredoc (for multiline code or code needing complex symbol escaping):**
+**For multiline code:**
 ```bash
 clj-nrepl-eval -p 7888 <<'EOF'
 (def x 10)
@@ -59,37 +47,75 @@ clj-nrepl-eval -p 7888 <<'EOF'
 EOF
 ```
 
+**Alternative: As a command-line argument:**
+```bash
+clj-nrepl-eval --port 7888 "(+ 1 2 3)"
+```
+
+**Alternative: Via stdin pipe:**
+```bash
+echo "(+ 1 2 3)" | clj-nrepl-eval -p 7888
+```
+
+### 2. Display nREPL Sessions
+
+You can check if you already have an active session on a port:
+
+```bash
+clj-nrepl-eval --connected-ports
+```
+
+Connections only appear in this list after you've evaluated code on
+that port at least once and **connected to the port**
+
+**Important:** This only shows connections you have made, not all nREPL
+servers running on the system.
+
 ### 3. Common Patterns
 
 **Require a namespace (always use :reload to pick up changes):**
 ```bash
-clj-nrepl-eval -p 7888 "(require '[my.namespace :as ns] :reload)"
+clj-nrepl-eval -p 7888 <<'EOF'
+(require '[my.namespace :as ns] :reload)
+EOF
 ```
 
 **Test a function after requiring:**
 ```bash
-clj-nrepl-eval -p 7888 "(ns/my-function arg1 arg2)"
+clj-nrepl-eval -p 7888 <<'EOF'
+(ns/my-function arg1 arg2)
+EOF
 ```
 
 **Check if a file compiles:**
 ```bash
-clj-nrepl-eval -p 7888 "(require 'my.namespace :reload)"
+clj-nrepl-eval -p 7888 <<'EOF'
+(require 'my.namespace :reload)
+EOF
 ```
 
 **Multiple expressions:**
 ```bash
-clj-nrepl-eval -p 7888 "(def x 10) (* x 2) (+ x 5)"
+clj-nrepl-eval -p 7888 <<'EOF'
+(def x 10)
+(* x 2)
+(+ x 5)
+EOF
 ```
 
 **With custom timeout (in milliseconds):**
 ```bash
-clj-nrepl-eval -p 7888 --timeout 5000 "(long-running-fn)"
+clj-nrepl-eval -p 7888 --timeout 5000 <<'EOF'
+(long-running-fn)
+EOF
 ```
 
 **Reset the session (clears all state):**
 ```bash
 clj-nrepl-eval -p 7888 --reset-session
-clj-nrepl-eval -p 7888 --reset-session "(def x 1)"
+clj-nrepl-eval -p 7888 --reset-session <<'EOF'
+(def x 1)
+EOF
 ```
 
 ## Available Options
@@ -103,6 +129,7 @@ clj-nrepl-eval -p 7888 --reset-session "(def x 1)"
 
 ## Important Notes
 
+- **Prefer heredoc format:** Use heredoc (`<<'EOF' ... EOF`) by default for cleaner, more readable output - even for single-line expressions
 - **Sessions persist:** State (vars, namespaces, loaded libraries) persists across invocations until the nREPL server restarts or `--reset-session` is used
 - **Automatic delimiter repair:** The tool automatically repairs missing or mismatched parentheses
 - **Always use :reload:** When requiring namespaces, use `:reload` to pick up recent changes
@@ -112,6 +139,16 @@ clj-nrepl-eval -p 7888 --reset-session "(def x 1)"
 ## Typical Workflow
 
 1. Discover connections: `clj-nrepl-eval --connected-ports`
-2. Require namespace: `clj-nrepl-eval -p 7888 "(require '[my.ns :as ns] :reload)"`
-3. Test function: `clj-nrepl-eval -p 7888 "(ns/my-fn ...)"`
+2. Require namespace:
+   ```bash
+   clj-nrepl-eval -p 7888 <<'EOF'
+   (require '[my.ns :as ns] :reload)
+   EOF
+   ```
+3. Test function:
+   ```bash
+   clj-nrepl-eval -p 7888 <<'EOF'
+   (ns/my-fn ...)
+   EOF
+   ```
 4. Iterate: Make changes, re-require with `:reload`, test again
