@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.1] - 2025-11-11
+
+### Summary
+
+This release improves the developer experience with Claude Code through enhanced documentation and better nREPL evaluation workflow. The most significant improvements are the new clojure-eval skill that provides streamlined REPL interactions and improved documentation with heredoc examples for better code evaluation patterns.
+
+### Added
+- **Claude Code skill for clojure-eval** - New skill provides streamlined nREPL evaluation workflow in Claude Code with automatic port discovery and session management
+- **Stdin support for clj-nrepl-eval** - Evaluate code directly from stdin for easier piping and scripting workflows
+- **Delimiter repair test for edge cases** - Added test coverage for unusual delimiter patterns
+
+### Changed
+- **Improved skill documentation** - Enhanced clojure-eval skill instructions with heredoc examples showing best practices for code evaluation
+- **Timeout handling for nREPL** - All nREPL evaluations now use consistent timeout and interrupt handling for better reliability
+- **Documentation cleanup** - Cleaned up CLAUDE.md file for better clarity
+
 ## [0.1.0] - 2025-11-10
 
 ### Summary
@@ -62,6 +78,7 @@ This release introduces edit validation metrics, enhanced nREPL connection disco
   - All tests passing
   - Better test coverage for new features
 
+[0.1.1]: https://github.com/bhauman/clojure-mcp-light/releases/tag/v0.1.1
 [0.1.0]: https://github.com/bhauman/clojure-mcp-light/releases/tag/v0.1.0
 
 ## [0.0.4-alpha] - 2025-11-09

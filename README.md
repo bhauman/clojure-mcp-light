@@ -112,10 +112,10 @@ Clojure-mcp-light provides two main tools:
 
    From GitHub:
    ```bash
-   bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.1.0
+   bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.1.1
    ```
    ```bash
-   bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.1.0 --as clj-nrepl-eval --main-opts '["-m"  "clojure-mcp-light.nrepl-eval"]'
+   bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.1.1 --as clj-nrepl-eval --main-opts '["-m"  "clojure-mcp-light.nrepl-eval"]'
    ```
 
    Or from local checkout:
