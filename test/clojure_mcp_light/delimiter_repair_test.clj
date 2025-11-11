@@ -122,6 +122,57 @@
     (is (true? (dr/delimiter-error? "(let [x #?(:clj 1 :cljs 2)] x")))
     (is (true? (dr/delimiter-error? "[1 2 #?(:clj 3) 4")))))
 
+(deftest delimiter-error-with-reader-conditional-splicing-test
+  (testing "parses reader conditional splicing with known features"
+    (is (false? (dr/delimiter-error? "{1 2 #?@(:clj [3 4])}")))
+    (is (false? (dr/delimiter-error? "{1 2 #?@(:cljs [3 4])}")))
+    (is (false? (dr/delimiter-error? "{1 2 #?@(:bb [3 4])}")))
+    (is (false? (dr/delimiter-error? "(def x [1 2 #?@(:clj [3 4])])"))))
+
+  (testing "parses reader conditional splicing with unknown features"
+    (is (false? (dr/delimiter-error? "{1 2 #?@(:my-custom-feature [3 4])}")))
+    (is (false? (dr/delimiter-error? "{1 2 #?@(:unknown [3 4])}")))
+    (is (false? (dr/delimiter-error? "(def x [1 2 #?@(:custom-lang [3 4])])"))))
+
+  (testing "detects delimiter errors with reader conditional splicing and known features"
+    (is (true? (dr/delimiter-error? "{1 2 #?@(:clj [3 4]")))
+    (is (true? (dr/delimiter-error? "{1 2 #?@(:cljs [3 4)")))
+    (is (true? (dr/delimiter-error? "(def x [1 2 #?@(:clj [3 4])]"))))
+
+  (testing "handles real-world Transit reader map with splicing"
+    (is (false? (dr/delimiter-error?
+                 "{\"DateTime\" (transit/read-handler read-date-time)
+                   \"Date\" (transit/read-handler read-local-date)
+                   \"AVLMap\" (transit/read-handler #(into (avl/sorted-map) %))
+                   #?@(:cljs [\"u\" cljs.core/uuid])}"))))
+
+  (testing "detects delimiter errors in Transit reader map"
+    (is (true? (dr/delimiter-error?
+                "{\"DateTime\" (transit/read-handler read-date-time)
+                  \"Date\" (transit/read-handler read-local-date)
+                  #?@(:cljs [\"u\" cljs.core/uuid]"))))
+
+  (testing "handles multiple reader conditional splicing forms"
+    (is (false? (dr/delimiter-error?
+                 "{:a 1
+                   #?@(:clj [:b 2])
+                   #?@(:cljs [:c 3])
+                   :d 4}")))
+    (is (false? (dr/delimiter-error?
+                 "[1 2 #?@(:bb [3 4]) 5 #?@(:clj [6 7])]"))))
+
+  (testing "known limitation: missing ) on reader conditional with unknown feature at EOF"
+    ;; Specific edge case: when the reader conditional form itself (#?@(...))
+    ;; is missing its closing ) at EOF and the feature is unknown, edamame
+    ;; doesn't provide delimiter info (though it still reports an error).
+    ;; Use actual-delimiter-error? to avoid logging the expected error.
+    (is (false? (dr/actual-delimiter-error? "{1 2 #?@(:unknown [3 4]")))
+    ;; But delimiter errors within the vector ARE detected even with unknown features:
+    (is (true? (dr/actual-delimiter-error? "{1 2 #?@(:unknown [3 4")))
+    ;; And errors with known features provide full delimiter info:
+    (is (true? (dr/actual-delimiter-error? "{1 2 #?@(:cljs [3 4]")))
+    (is (true? (dr/actual-delimiter-error? "{1 2 #?@(:cljs [3 4")))))
+
 (deftest delimiter-error-with-metadata-test
   (testing "does not error on valid metadata forms"
     (is (false? (dr/delimiter-error? "^:private foo")))
