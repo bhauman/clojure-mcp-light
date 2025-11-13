@@ -3,8 +3,7 @@
   (:require [edamame.core :as e]
             [clojure.java.shell :as shell]
             [cheshire.core :as json]
-            [clojure-mcp-light.stats :as stats]
-            [taoensso.timbre :as timbre]))
+            [clojure-mcp-light.stats :as stats]))
 
 (def ^:dynamic *signal-on-bad-parse* true)
 
@@ -29,14 +28,12 @@
                         (contains? data :edamame/opened-delimiter))]
         (when-not result
           (when *signal-on-bad-parse*
-            (timbre/error "Delimiter parse error:" (ex-message ex) (ex-data ex))
             (stats/log-stats! :delimiter-parse-error
                               {:ex-message (ex-message ex)
                                :ex-data (ex-data ex)})))
         result))
     (catch Exception e
       (when *signal-on-bad-parse*
-        (timbre/error "Delimiter parse error:" (ex-message e))
         (stats/log-stats! :delimiter-parse-error
                           {:ex-message (ex-message e)}))
 
