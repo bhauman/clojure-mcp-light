@@ -60,17 +60,17 @@ Use the `-p` flag to specify the port and pass your Clojure code.
 
 **Recommended: Pass code as a command-line argument:**
 ```bash
-clj-nrepl-eval -p 7888 "(+ 1 2 3)"
+clj-nrepl-eval -p <PORT> "(+ 1 2 3)"
 ```
 
 **For multiple expressions (single line):**
 ```bash
-clj-nrepl-eval -p 7888 "(def x 10) (+ x 20)"
+clj-nrepl-eval -p <PORT> "(def x 10) (+ x 20)"
 ```
 
 **Alternative: Using heredoc (may require permission approval for multiline commands):**
 ```bash
-clj-nrepl-eval -p 7888 <<'EOF'
+clj-nrepl-eval -p <PORT> <<'EOF'
 (def x 10)
 (+ x 20)
 EOF
@@ -78,7 +78,7 @@ EOF
 
 **Alternative: Via stdin pipe:**
 ```bash
-echo "(+ 1 2 3)" | clj-nrepl-eval -p 7888
+echo "(+ 1 2 3)" | clj-nrepl-eval -p <PORT>
 ```
 
 ### 2. Display nREPL Sessions
@@ -99,27 +99,27 @@ Shows only connections you have made before (appears after first evaluation on a
 
 **Require a namespace (always use :reload to pick up changes):**
 ```bash
-clj-nrepl-eval -p 7888 "(require '[my.namespace :as ns] :reload)"
+clj-nrepl-eval -p <PORT> "(require '[my.namespace :as ns] :reload)"
 ```
 
 **Test a function after requiring:**
 ```bash
-clj-nrepl-eval -p 7888 "(ns/my-function arg1 arg2)"
+clj-nrepl-eval -p <PORT> "(ns/my-function arg1 arg2)"
 ```
 
 **Check if a file compiles:**
 ```bash
-clj-nrepl-eval -p 7888 "(require 'my.namespace :reload)"
+clj-nrepl-eval -p <PORT> "(require 'my.namespace :reload)"
 ```
 
 **Multiple expressions:**
 ```bash
-clj-nrepl-eval -p 7888 "(def x 10) (* x 2) (+ x 5)"
+clj-nrepl-eval -p <PORT> "(def x 10) (* x 2) (+ x 5)"
 ```
 
 **Complex multiline code (using heredoc):**
 ```bash
-clj-nrepl-eval -p 7888 <<'EOF'
+clj-nrepl-eval -p <PORT> <<'EOF'
 (def x 10)
 (* x 2)
 (+ x 5)
@@ -129,13 +129,13 @@ EOF
 
 **With custom timeout (in milliseconds):**
 ```bash
-clj-nrepl-eval -p 7888 --timeout 5000 "(long-running-fn)"
+clj-nrepl-eval -p <PORT> --timeout 5000 "(long-running-fn)"
 ```
 
 **Reset the session (clears all state):**
 ```bash
-clj-nrepl-eval -p 7888 --reset-session
-clj-nrepl-eval -p 7888 --reset-session "(def x 1)"
+clj-nrepl-eval -p <PORT> --reset-session
+clj-nrepl-eval -p <PORT> --reset-session "(def x 1)"
 ```
 
 ## Available Options
@@ -150,7 +150,7 @@ clj-nrepl-eval -p 7888 --reset-session "(def x 1)"
 
 ## Important Notes
 
-- **Prefer command-line arguments:** Pass code as quoted strings: `clj-nrepl-eval -p 7888 "(+ 1 2 3)"` - works with existing permissions
+- **Prefer command-line arguments:** Pass code as quoted strings: `clj-nrepl-eval -p <PORT> "(+ 1 2 3)"` - works with existing permissions
 - **Heredoc for complex code:** Use heredoc (`<<'EOF' ... EOF`) for truly multiline code, but note it may require permission approval
 - **Sessions persist:** State (vars, namespaces, loaded libraries) persists across invocations until the nREPL server restarts or `--reset-session` is used
 - **Automatic delimiter repair:** The tool automatically repairs missing or mismatched parentheses
@@ -164,10 +164,10 @@ clj-nrepl-eval -p 7888 --reset-session "(def x 1)"
 2. Use **AskUserQuestion** tool to prompt user to select a port
 3. Require namespace:
    ```bash
-   clj-nrepl-eval -p 7888 "(require '[my.ns :as ns] :reload)"
+   clj-nrepl-eval -p <PORT> "(require '[my.ns :as ns] :reload)"
    ```
 4. Test function:
    ```bash
-   clj-nrepl-eval -p 7888 "(ns/my-fn ...)"
+   clj-nrepl-eval -p <PORT> "(ns/my-fn ...)"
    ```
 5. Iterate: Make changes, re-require with `:reload`, test again
