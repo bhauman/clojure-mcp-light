@@ -199,7 +199,7 @@ This project includes custom slash commands for Claude Code to streamline your C
 ### Available Commands
 
 - **/start-nrepl** - Automatically starts an nREPL server in the background, detects the port, and creates a `.nrepl-port` file
-- **/clojure-eval** - Provides information about using `clj-nrepl-eval` for REPL-driven development
+- **/clojure-nrepl** - Provides information about using `clj-nrepl-eval` for REPL-driven development
 
 ### Setup
 
@@ -213,7 +213,7 @@ mkdir -p .claude/commands
 cp commands/*.md .claude/commands/
 
 # Or create symlinks (recommended - stays in sync with updates)
-ln -s $(pwd)/commands/clojure-eval.md .claude/commands/clojure-eval.md
+ln -s $(pwd)/commands/clojure-nrepl.md .claude/commands/clojure-nrepl.md
 ln -s $(pwd)/commands/start-nrepl.md .claude/commands/start-nrepl.md
 ```
 
@@ -228,7 +228,7 @@ Once set up, you can use these commands in Claude Code conversations:
 This will start an nREPL server and set up the `.nrepl-port` file automatically.
 
 ```
-/clojure-eval
+/clojure-nrepl
 ```
 
 This provides Claude with context about REPL evaluation, making it easier to work with your running Clojure environment.

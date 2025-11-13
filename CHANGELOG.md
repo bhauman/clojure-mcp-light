@@ -268,7 +268,7 @@ This version represents a major improvement in robustness and developer experien
 
 - **Slash commands** for Claude Code
   - `/start-nrepl` - Start nREPL server in background
-  - `/clojure-eval` - Information about REPL evaluation
+  - `/clojure-nrepl` - Information about REPL evaluation
 
 - **Installation support**
   - bbin package manager integration
