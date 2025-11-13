@@ -130,49 +130,7 @@ Clojure-mcp-light provides two main tools:
    - `clj-paren-repair-claude-hook` - Hook for automatic delimiter fixing
    - `clj-nrepl-eval` - nREPL evaluation tool
 
-4. Configure Claude Code hooks in your project's `.claude/settings.local.json`:
-   ```json
-   {
-     "hooks": {
-       "PreToolUse": [
-         {
-           "matcher": "Write|Edit",
-           "hooks": [
-             {
-               "type": "command",
-               "command": "clj-paren-repair-claude-hook"
-             }
-           ]
-         }
-       ],
-       "PostToolUse": [
-         {
-           "matcher": "Edit|Write",
-           "hooks": [
-             {
-               "type": "command",
-               "command": "clj-paren-repair-claude-hook"
-             }
-           ]
-         }
-       ],
-       "SessionEnd": [
-         {
-           "hooks": [
-             {
-               "type": "command",
-               "command": "clj-paren-repair-claude-hook"
-             }
-           ]
-         }
-       ]
-     }
-   }
-   ```
-
-   **Optional: Enable automatic code formatting with cljfmt**
-
-   Add the `--cljfmt` flag to enable automatic code formatting after write/edit operations:
+4. Configure Claude Code hooks in `~/.claude/settings.local.json`:
    ```json
    {
      "hooks": {
@@ -212,11 +170,13 @@ Clojure-mcp-light provides two main tools:
    }
    ```
 
-   This requires [cljfmt](https://github.com/weavejester/cljfmt) to be installed and available on your PATH.
-
-   The SessionEnd hook automatically cleans up temporary files (backups, nREPL sessions) when Claude Code sessions terminate.
-
-   See [settings_example/settings.local.json](settings_example/settings.local.json) for a complete example.
+   **Configuration notes:**
+   - The `--cljfmt` flag enables automatic code formatting (requires [cljfmt](https://github.com/weavejester/cljfmt) on your PATH)
+   - Add `--stats` to enable delimiter event tracking to `~/.clojure-mcp-light/stats.log`
+   - Add `--log-level debug` (or `trace`) for debugging hook operations
+   - Add `--log-file PATH` to customize log file location
+   - Remove `--cljfmt` if you don't want automatic formatting
+   - The SessionEnd hook automatically cleans up temporary files when Claude Code sessions terminate
 
 5. Verify installation:
    ```bash
@@ -330,47 +290,16 @@ Log files include timestamps, namespaces, line numbers, and structured output fo
 
 **Enabling logging in hooks:**
 
-To enable logging when running as a Claude Code hook, add the `--log-level` flag to your `.claude/settings.local.json`:
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [{
-      "matcher": "Write|Edit",
-      "hooks": [{
-        "type": "command",
-        "command": "clj-paren-repair-claude-hook --log-level debug --cljfmt"
-      }]
-    }]
-  }
-}
+To enable logging when running as a Claude Code hook, add the `--log-level` flag to your hook command. For example:
+```
+clj-paren-repair-claude-hook --log-level debug --cljfmt
 ```
 
 ### Statistics Tracking
 
-The `--stats` flag enables tracking of delimiter events to help analyze LLM-generated code quality:
-
-**Enabling stats tracking:**
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [{
-      "matcher": "Write|Edit",
-      "hooks": [{
-        "type": "command",
-        "command": "clj-paren-repair-claude-hook --stats"
-      }]
-    }],
-    "PostToolUse": [{
-      "matcher": "Edit|Write",
-      "hooks": [{
-        "type": "command",
-        "command": "clj-paren-repair-claude-hook --stats"
-      }]
-    }]
-  }
-}
+The `--stats` flag enables tracking of delimiter events to help analyze LLM-generated code quality. Add it to your hook command:
+```
+clj-paren-repair-claude-hook --cljfmt --stats
 ```
 
 **Event types tracked:**
