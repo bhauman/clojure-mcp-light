@@ -214,7 +214,7 @@
 
 (defn detect-nrepl-env-type
   "Detect nREPL environment type from describe response.
-   Returns :clj, :bb, :basilisp, :scittle, or :unknown."
+   Returns :clj, :bb, :basilisp, :scittle, :shadow, or :unknown."
   [describe-response]
   (when-let [versions (:versions describe-response)]
     (cond
@@ -223,6 +223,13 @@
       (or (get versions :basilisp) (get versions "basilisp")) :basilisp
       (or (get versions :sci-nrepl) (get versions "sci-nrepl")) :scittle
       :else :unknown)))
+
+(defn detect-shadow-cljs?
+  "Check if nREPL server is running shadow-cljs.
+   Returns true if shadow.cljs.devtools.api namespace is loaded, false otherwise."
+  [host port]
+  (when-let [result (eval-nrepl host port "(find-ns 'shadow.cljs.devtools.api)")]
+    (not (str/blank? result))))
 
 (defmulti fetch-project-directory-exp
   "Returns an expression (string) to evaluate for getting the project directory.
@@ -240,6 +247,10 @@
 (defmethod fetch-project-directory-exp :basilisp
   [_]
   "(import os)\n(os/getcwd)")
+
+(defmethod fetch-project-directory-exp :shadow
+  [_]
+  "(System/getProperty \"user.dir\")")
 
 (defmethod fetch-project-directory-exp :default
   [_]
@@ -287,7 +298,7 @@
    1. Checking .nrepl-port file in current directory
    2. Finding Java/Clojure/Babashka processes listening on TCP ports (lsof)
    3. Validating discovered ports by checking if they respond to ls-sessions
-   4. Detecting environment type (clj, bb, basilisp, etc.)
+   4. Detecting environment type (clj, bb, basilisp, shadow, etc.)
    5. Getting project directory and checking if it matches current working directory
 
    Returns vector of maps with:
@@ -295,7 +306,7 @@
    - :port - Port number
    - :source - How port was discovered (:nrepl-port-file or :lsof)
    - :valid - Boolean indicating if port responds to nREPL ls-sessions op
-   - :env-type - Environment type (:clj, :bb, :basilisp, :scittle, :unknown, or nil if invalid)
+   - :env-type - Environment type (:clj, :bb, :basilisp, :scittle, :shadow, :unknown, or nil if invalid)
    - :project-dir - Project directory path from nREPL server (or nil)
    - :matches-cwd - Boolean indicating if project-dir matches current working directory"
   []
@@ -316,7 +327,10 @@
                     (if valid
                       ;; Valid nREPL - get env type and project dir
                       (let [describe-resp (describe-nrepl "localhost" port)
-                            env-type (detect-nrepl-env-type describe-resp)
+                            base-env-type (detect-nrepl-env-type describe-resp)
+                            ;; Check for shadow-cljs (overrides base env-type)
+                            is-shadow? (detect-shadow-cljs? "localhost" port)
+                            env-type (if is-shadow? :shadow base-env-type)
                             dir-expr (fetch-project-directory-exp env-type)
                             project-dir (when dir-expr
                                           (eval-nrepl "localhost" port dir-expr))
