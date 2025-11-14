@@ -61,7 +61,7 @@
     (let [ctx {}
           session-file (tmp/nrepl-target-file ctx {:host host :port port})]
       (when (.exists (java.io.File. session-file))
-        (str/trim (slurp session-file))))
+        (str/trim (slurp session-file :encoding "UTF-8"))))
     (catch Exception _
       nil)))
 
@@ -74,7 +74,7 @@
     ;; Ensure parent directories exist
     (when-let [parent (.getParentFile file)]
       (.mkdirs parent))
-    (spit session-file (str session-id "\n"))))
+    (spit session-file (str session-id "\n") :encoding "UTF-8")))
 
 (defn delete-nrepl-session
   "Delete nrepl session file for given host and port if it exists."
@@ -263,7 +263,7 @@
   (try
     (let [file (java.io.File. ".nrepl-port")]
       (when (.exists file)
-        (parse-long (str/trim (slurp file)))))
+        (parse-long (str/trim (slurp file :encoding "UTF-8")))))
     (catch Exception _
       nil)))
 
@@ -584,24 +584,52 @@
 
 (defn handle-discover-ports
   "Handler for --discover-ports flag.
-   Discovers and lists nREPL servers in the current directory."
+   Discovers and lists all nREPL servers, grouped by directory."
   []
   (let [discovered (discover-nrepl-ports)
         valid-servers (filter :valid discovered)
-        current-dir-servers (filter :matches-cwd valid-servers)]
-    (if (empty? current-dir-servers)
-      (println (format "No nREPL servers found in current directory (%s)." (System/getProperty "user.dir")))
+        current-dir (System/getProperty "user.dir")
+        current-dir-servers (filter :matches-cwd valid-servers)
+        other-dir-servers (remove :matches-cwd valid-servers)]
+    (if (empty? valid-servers)
+      (println "No nREPL servers found.")
       (do
-        (println (format "Discovered nREPL servers in current directory (%s):" (System/getProperty "user.dir")))
-        (doseq [{:keys [host port env-type]} current-dir-servers]
-          (println (format "  %s:%d (%s)"
-                           host
-                           port
-                           (name (or env-type :unknown)))))
+        (println "Discovered nREPL servers:")
         (println)
-        (println (format "Total: %d server%s in current directory"
-                         (count current-dir-servers)
-                         (if (= 1 (count current-dir-servers)) "" "s")))))))
+
+        ;; Show servers in current directory
+        (when (seq current-dir-servers)
+          (println (format "In current directory (%s):" current-dir))
+          (doseq [{:keys [host port env-type]} current-dir-servers]
+            (println (format "  %s:%d (%s)"
+                             host
+                             port
+                             (name (or env-type :unknown)))))
+          (println))
+
+        ;; Show servers in other directories
+        (when (seq other-dir-servers)
+          (println "In other directories:")
+          (doseq [{:keys [host port env-type project-dir]} other-dir-servers]
+            (println (format "  %s:%d (%s) - %s"
+                             host
+                             port
+                             (name (or env-type :unknown))
+                             (or project-dir "unknown"))))
+          (println))
+
+        ;; Show summary
+        (let [current-count (count current-dir-servers)
+              other-count (count other-dir-servers)
+              total-count (count valid-servers)]
+          (println (format "Total: %d server%s%s"
+                           total-count
+                           (if (= 1 total-count) "" "s")
+                           (if (and (pos? current-count) (pos? other-count))
+                             (format " (%d in current directory, %d in other directories)"
+                                     current-count
+                                     other-count)
+                             ""))))))))
 
 (defn handle-reset-session
   "Handler for --reset-session flag.
