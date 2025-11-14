@@ -226,10 +226,10 @@
 
 (defn detect-shadow-cljs?
   "Check if nREPL server is running shadow-cljs.
-   Returns true if shadow.cljs.devtools.api namespace is loaded, false otherwise."
+   Returns true if evaluating code without a session results in :ns \"shadow.user\", false otherwise."
   [host port]
-  (when-let [result (eval-nrepl host port "(find-ns 'shadow.cljs.devtools.api)")]
-    (not (str/blank? result))))
+  (when-let [response (nrepl-op host port {"op" "eval" "code" "1"})]
+    (= "shadow.user" (:ns response))))
 
 (defmulti fetch-project-directory-exp
   "Returns an expression (string) to evaluate for getting the project directory.
