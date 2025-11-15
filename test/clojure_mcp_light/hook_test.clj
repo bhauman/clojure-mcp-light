@@ -21,21 +21,21 @@
   (testing "identifies files with Babashka shebang"
     (let [temp-file (str (fs/create-temp-file {:prefix "test-bb-" :suffix ".sh"}))]
       (try
-        (spit temp-file "#!/usr/bin/env bb\n(println \"hello\")")
+        (spit temp-file "#!/usr/bin/env bb\n(println \"hello\")" :encoding "UTF-8")
         (is (hook/clojure-file? temp-file))
         (finally
           (fs/delete-if-exists temp-file))))
 
     (let [temp-file (str (fs/create-temp-file {:prefix "test-bb-" :suffix ".sh"}))]
       (try
-        (spit temp-file "#!/usr/bin/bb\n(println \"hello\")")
+        (spit temp-file "#!/usr/bin/bb\n(println \"hello\")" :encoding "UTF-8")
         (is (hook/clojure-file? temp-file))
         (finally
           (fs/delete-if-exists temp-file))))
 
     (let [temp-file (str (fs/create-temp-file {:prefix "test-bb-" :suffix ".sh"}))]
       (try
-        (spit temp-file "#!/usr/local/bin/bb --nrepl-server 1667\n(println \"hello\")")
+        (spit temp-file "#!/usr/local/bin/bb --nrepl-server 1667\n(println \"hello\")" :encoding "UTF-8")
         (is (hook/clojure-file? temp-file))
         (finally
           (fs/delete-if-exists temp-file)))))
@@ -43,7 +43,7 @@
   (testing "rejects files without Babashka shebang"
     (let [temp-file (str (fs/create-temp-file {:prefix "test-bash-" :suffix ".sh"}))]
       (try
-        (spit temp-file "#!/bin/bash\necho \"hello\"")
+        (spit temp-file "#!/bin/bash\necho \"hello\"" :encoding "UTF-8")
         (is (nil? (hook/clojure-file? temp-file)))
         (finally
           (fs/delete-if-exists temp-file)))))

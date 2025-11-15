@@ -30,13 +30,13 @@
           test-port 7888]
       (try
         ;; Create a test session file
-        (spit test-session-file (str test-session-id "\n"))
+        (spit test-session-file (str test-session-id "\n") :encoding "UTF-8")
         ;; Test reading it
         (let [result (with-redefs [ne/slurp-nrepl-session
                                    (fn [_ _]
                                      (try
                                        (when (.exists (io/file test-session-file))
-                                         (clojure.string/trim (slurp test-session-file)))
+                                         (clojure.string/trim (slurp test-session-file :encoding "UTF-8")))
                                        (catch Exception _
                                          nil)))]
                        (ne/slurp-nrepl-session test-host test-port))]
@@ -50,7 +50,7 @@
                                (fn [_ _]
                                  (try
                                    (when (.exists (io/file ".nrepl-session-nonexistent"))
-                                     (clojure.string/trim (slurp ".nrepl-session-nonexistent")))
+                                     (clojure.string/trim (slurp ".nrepl-session-nonexistent" :encoding "UTF-8")))
                                    (catch Exception _
                                      nil)))]
                    (ne/slurp-nrepl-session "localhost" 7888))]
@@ -71,10 +71,10 @@
         ;; Write session ID
         (with-redefs [ne/spit-nrepl-session
                       (fn [session-id _ _]
-                        (spit test-session-file (str session-id "\n")))]
+                        (spit test-session-file (str session-id "\n") :encoding "UTF-8"))]
           (ne/spit-nrepl-session test-session-id test-host test-port))
         ;; Verify it was written correctly
-        (let [content (clojure.string/trim (slurp test-session-file))]
+        (let [content (clojure.string/trim (slurp test-session-file :encoding "UTF-8"))]
           (is (= test-session-id content)))
         (finally
           ;; Clean up
@@ -87,7 +87,7 @@
           test-port 7888]
       (try
         ;; Create a test file
-        (spit test-session-file "test-session")
+        (spit test-session-file "test-session" :encoding "UTF-8")
         (is (.exists (io/file test-session-file)))
         ;; Delete it
         (with-redefs [ne/delete-nrepl-session

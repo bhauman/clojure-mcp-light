@@ -180,10 +180,10 @@
   (let [ctx {:session-id session-id}
         backup (tmp/backup-path ctx file-path)
         backup-file (io/file backup)
-        content (slurp file-path)]
+        content (slurp file-path :encoding "UTF-8")]
     ;; Ensure parent directories exist
     (.mkdirs (.getParentFile backup-file))
-    (spit backup content)
+    (spit backup content :encoding "UTF-8")
     backup))
 
 (defn restore-file
@@ -191,8 +191,8 @@
   [file-path backup-path]
   (when (.exists (io/file backup-path))
     (try
-      (let [backup-content (slurp backup-path)]
-        (spit file-path backup-content)
+      (let [backup-content (slurp backup-path :encoding "UTF-8")]
+        (spit file-path backup-content :encoding "UTF-8")
         true)
       (finally
         (io/delete-file backup-path)))))
@@ -226,8 +226,8 @@
     (let [ctx {:session-id session-id}
           backup-file (tmp/backup-path ctx file-path)]
       (try
-        (let [backup-content (try (slurp backup-file) (catch Exception _ nil))
-              file-content (slurp file-path)]
+        (let [backup-content (try (slurp backup-file :encoding "UTF-8") (catch Exception _ nil))
+              file-content (slurp file-path :encoding "UTF-8")]
           (when (not= backup-content file-content)
             (process-pre-write file-path file-content)))
         (finally
@@ -252,7 +252,7 @@
     replace-all - Boolean flag for replace-all behavior"
   [file-path old-string new-string replace-all]
   (when (.exists (io/file file-path))
-    (let [file-content (slurp file-path)
+    (let [file-content (slurp file-path :encoding "UTF-8")
           validation (edit-validator/validate-sliding-edit
                       file-content
                       old-string
@@ -368,7 +368,7 @@
       (timbre/debug "PostEdit: clojure" file_path)
       (let [backup (tmp/backup-path {:session-id session_id} file_path)
             backup-exists? (.exists (io/file backup))
-            file-content (slurp file_path)]
+            file-content (slurp file_path :encoding "UTF-8")]
         (if (delimiter-error? file-content)
           (let [actual-error? (actual-delimiter-error? file-content)]
             (when actual-error?
@@ -379,7 +379,7 @@
                 (when actual-error?
                   (stats/log-event! :delimiter-fixed "PostToolUse:Edit" file_path))
                 (timbre/debug "  Fix successful, applying fix and deleting backup")
-                (spit file_path fixed-content)
+                (spit file_path fixed-content :encoding "UTF-8")
                 (when *enable-cljfmt*
                   (run-cljfmt file_path))
                 nil

@@ -214,7 +214,7 @@
                                                           (str (fs/file-name file-path)))]
                        (try
                          (let [session-id (when (fs/exists? file-path)
-                                            (some-> (slurp (str file-path))
+                                            (some-> (slurp (str file-path) :encoding "UTF-8")
                                                     str/trim
                                                     not-empty))]
                            {:host (str/replace host #"_" ".")
