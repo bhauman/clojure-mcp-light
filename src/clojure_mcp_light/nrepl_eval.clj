@@ -407,12 +407,17 @@
                                       "code" fixed-expr
                                       "id" eval-id
                                       "session" session})]
-        (loop [m {:vals [] :responses [] :interrupted false}]
+        (loop [m {:vals [] :responses [] :interrupted false :ns-printed false}]
           (let [remaining (max 0 (- deadline (now-ms)))]
             (if (pos? remaining)
               ;; Wait up to 250ms at a time for responses so we can honor timeout
               (if-let [resp (try-read-msg s in (min remaining 250))]
                 (do
+                  ;; Print namespace header on first response with :ns
+                  (when (and (:ns resp) (not (:ns-printed m)))
+                    (binding [*out* *err*]
+                      (println (str ";; nREPL Namespace: " (:ns resp)))
+                      (println)))
                   ;; Handle output
                   (when-let [out-str (:out resp)]
                     (print out-str)
@@ -428,7 +433,9 @@
                   ;; Collect values
                   (let [m (cond-> (update m :responses conj resp)
                             (:value resp)
-                            (update :vals conj (:value resp)))]
+                            (update :vals conj (:value resp))
+                            (:ns resp)
+                            (assoc :ns-printed true))]
                     ;; Stop when server says we're done
                     (if (some #{"done"} (:status resp))
                       m
