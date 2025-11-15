@@ -1,6 +1,8 @@
 (ns clojure-mcp-light.nrepl-eval
   "nREPL client implementation with automatic delimiter repair and timeout handling"
-  (:require [bencode.core :as b]
+  (:require [babashka.fs :as fs]
+            [bencode.core :as b]
+            [clojure.edn :as edn]
             [clojure.string :as str]
             [clojure.tools.cli :refer [parse-opts]]
             [clojure-mcp-light.delimiter-repair :refer [fix-delimiters]]
@@ -54,36 +56,36 @@
 ;; Session file I/O utilities
 
 (defn slurp-nrepl-session
-  "Read session ID from nrepl session file for given host and port.
-  Returns nil if file doesn't exist or on error."
+  "Read session data from nrepl session file for given host and port.
+  Returns map with :session-id, :env-type, :host, and :port, or nil if file doesn't exist or on error."
   [host port]
   (try
     (let [ctx {}
           session-file (tmp/nrepl-target-file ctx {:host host :port port})]
-      (when (.exists (java.io.File. session-file))
-        (str/trim (slurp session-file :encoding "UTF-8"))))
+      (when (fs/exists? session-file)
+        (edn/read-string (slurp session-file :encoding "UTF-8"))))
     (catch Exception _
       nil)))
 
 (defn spit-nrepl-session
-  "Write session ID to nrepl session file for given host and port."
-  [session-id host port]
+  "Write session data to nrepl session file for given host and port.
+  Takes a map with :session-id and optionally :env-type. Host and port are
+  added to the session data for validation."
+  [session-data host port]
   (let [ctx {}
         session-file (tmp/nrepl-target-file ctx {:host host :port port})
-        file (java.io.File. session-file)]
+        full-data (assoc session-data :host host :port port)]
     ;; Ensure parent directories exist
-    (when-let [parent (.getParentFile file)]
-      (.mkdirs parent))
-    (spit session-file (str session-id "\n") :encoding "UTF-8")))
+    (when-let [parent (fs/parent session-file)]
+      (fs/create-dirs parent))
+    (spit session-file (str (pr-str full-data) "\n") :encoding "UTF-8")))
 
 (defn delete-nrepl-session
   "Delete nrepl session file for given host and port if it exists."
   [host port]
   (let [ctx {}
-        session-file (tmp/nrepl-target-file ctx {:host host :port port})
-        f (java.io.File. session-file)]
-    (when (.exists f)
-      (.delete f))))
+        session-file (tmp/nrepl-target-file ctx {:host host :port port})]
+    (fs/delete-if-exists session-file)))
 
 ;; Session validation utilities
 
@@ -162,21 +164,23 @@
    - :host       - Host string
    - :port       - Port number
    - :session-id - Session ID to validate
+   - :env-type   - Environment type (optional)
 
    Returns map with :status key:
-   - {:status :active :host ... :port ... :session-id ...} if connection is valid
+   - {:status :active :host ... :port ... :session-id ... :env-type ...} if connection is valid
    - {:status :invalid :host ... :port ... :reason ...} if connection failed
 
    Does not clean up stale session files to preserve session persistence across
    server restarts. Use --reset-session to explicitly clean up sessions."
-  [{:keys [host port session-id]}]
+  [{:keys [host port session-id env-type]}]
   (try
     (if-let [active-sessions (get-active-sessions host port)]
       (if (some #{session-id} active-sessions)
         {:status :active
          :host host
          :port port
-         :session-id session-id}
+         :session-id session-id
+         :env-type env-type}
         {:status :invalid
          :host host
          :port port
@@ -198,6 +202,7 @@
    - :host       - Host string
    - :port       - Port number
    - :session-id - Active session ID
+   - :env-type   - Environment type (if available)
    - :status     - :active
 
    Only includes connections that are currently active and reachable.
@@ -389,17 +394,26 @@
       (let [out (java.io.BufferedOutputStream. (.getOutputStream s))
             in (java.io.PushbackInputStream. (.getInputStream s))
             ;; Try to reuse existing session or create new one
-            existing-session (slurp-nrepl-session host port)
+            existing-session-data (slurp-nrepl-session host port)
+            existing-session-id (:session-id existing-session-data)
             ;; Validate session on same socket
-            validated-session (validate-session-on-socket out in existing-session)
+            validated-session (validate-session-on-socket out in existing-session-id)
             session (if validated-session
                       validated-session
-                      (let [_ (when (and existing-session (not validated-session))
+                      (let [_ (when (and existing-session-id (not validated-session))
                                 (delete-nrepl-session host port))
                             clone-id (next-id)
                             _ (write-bencode-msg out {"op" "clone" "id" clone-id})
-                            {new-session :new-session} (read-msg (b/read-bencode in))]
-                        (spit-nrepl-session new-session host port)
+                            {new-session :new-session} (read-msg (b/read-bencode in))
+                            ;; Detect env-type if not already stored
+                            env-type (or (:env-type existing-session-data)
+                                         (let [describe-resp (nrepl-op host port {"op" "describe"})
+                                               base-env (detect-nrepl-env-type describe-resp)
+                                               is-shadow? (detect-shadow-cljs? host port)]
+                                           (if is-shadow? :shadow base-env)))
+                            session-data {:session-id new-session
+                                          :env-type env-type}]
+                        (spit-nrepl-session session-data host port)
                         new-session))
             eval-id (next-id)
             deadline (+ (now-ms) timeout-ms)
@@ -582,8 +596,12 @@
       (println "No active nREPL connections found.")
       (do
         (println "Active nREPL connections:")
-        (doseq [{:keys [host port session-id]} connections]
-          (println (format "  %s:%d (session: %s)" host port session-id)))
+        (doseq [{:keys [host port session-id env-type]} connections]
+          (println (format "  %s:%d (%s) (session: %s)"
+                           host
+                           port
+                           (name (or env-type :unknown))
+                           session-id)))
         (println)
         (println (format "Total: %d active connection%s"
                          (count connections)

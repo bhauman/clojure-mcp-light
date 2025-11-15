@@ -4,6 +4,7 @@
   Provides consistent temp file paths for backups, nREPL sessions, and other
   temporary files with automatic cleanup support via SessionEnd hooks."
   (:require [babashka.fs :as fs]
+            [clojure.edn :as edn]
             [clojure.string :as str]
             [clojure.java.io :as io]))
 
@@ -190,14 +191,15 @@
 (defn list-nrepl-session-files
   "List all stored nREPL session files for the current context.
 
-  Scans the nREPL directory for target-*.edn files and parses their
-  host, port, and session ID.
+  Scans the nREPL directory for target-*.edn files and reads session data
+  containing host, port, session ID, and env-type.
 
   Returns a vector of maps with keys:
-  - :host       - Host string (e.g., \"127.0.0.1\")
-  - :port       - Port number (long)
+  - :host       - Host string from session data
+  - :port       - Port number from session data
   - :file-path  - Absolute path to session file
   - :session-id - Session ID string (or nil if file is empty/invalid)
+  - :env-type   - Environment type (or nil if not available)
 
   Returns empty vector if:
   - nREPL directory doesn't exist
@@ -210,19 +212,14 @@
         (->> (fs/list-dir nrepl-path)
              (filter #(re-matches #"target-.*\.edn" (str (fs/file-name %))))
              (keep (fn [file-path]
-                     (when-let [[_ host port] (re-matches #"target-(.+)-(\d+)\.edn"
-                                                          (str (fs/file-name file-path)))]
-                       (try
-                         (let [session-id (when (fs/exists? file-path)
-                                            (some-> (slurp (str file-path) :encoding "UTF-8")
-                                                    str/trim
-                                                    not-empty))]
-                           {:host (str/replace host #"_" ".")
-                            :port (parse-long port)
-                            :file-path (str file-path)
-                            :session-id session-id})
-                         (catch Exception _
-                           nil)))))
+                     (try
+                       (when (fs/exists? file-path)
+                         (let [content (slurp (str file-path) :encoding "UTF-8")
+                               session-data (when content (edn/read-string content))]
+                           (when session-data
+                             (assoc session-data :file-path (str file-path)))))
+                       (catch Exception _
+                         nil))))
              vec)
         []))
     (catch Exception _
