@@ -328,6 +328,45 @@
       (is (contains? (:status result) "done")))))
 
 ;; ============================================================================
+;; Connection-based API tests (with * suffix)
+;; ============================================================================
+
+(deftest connection-based-api-test
+  (testing "describe-nrepl* with connection"
+    (let [raw-msgs [{"id" "1" "versions" {:clojure {:major 1}} "ops" {:eval {}} "status" [(.getBytes "done")]}]
+          msgs (nrepl/decode-messages raw-msgs)
+          conn {:input nil :output nil :host "localhost" :port 7888}
+          result (with-redefs [nrepl/messages-for-id (fn [_ _] msgs)]
+                   (nrepl/describe-nrepl* conn))]
+      (is (= {:clojure {:major 1}} (:versions result)))
+      (is (= {:eval {}} (:ops result)))))
+
+  (testing "eval-nrepl* with connection"
+    (let [raw-msgs [{"id" "1" "value" "42" "ns" "user" "status" [(.getBytes "done")]}]
+          msgs (nrepl/decode-messages raw-msgs)
+          conn {:input nil :output nil :host "localhost" :port 7888}
+          result (with-redefs [nrepl/messages-for-id (fn [_ _] msgs)]
+                   (nrepl/eval-nrepl* conn "(+ 1 2)"))]
+      (is (= "42" (:value result)))
+      (is (= "user" (:ns result)))))
+
+  (testing "clone-session* with connection"
+    (let [raw-msgs [{"id" "1" "new-session" "session-123" "status" [(.getBytes "done")]}]
+          msgs (nrepl/decode-messages raw-msgs)
+          conn {:input nil :output nil :host "localhost" :port 7888}
+          result (with-redefs [nrepl/messages-for-id (fn [_ _] msgs)]
+                   (nrepl/clone-session* conn))]
+      (is (= "session-123" (:new-session result)))))
+
+  (testing "ls-sessions* with connection"
+    (let [raw-msgs [{"id" "1" "sessions" [(.getBytes "s1") (.getBytes "s2")] "status" [(.getBytes "done")]}]
+          msgs (nrepl/decode-messages raw-msgs)
+          conn {:input nil :output nil :host "localhost" :port 7888}
+          result (with-redefs [nrepl/messages-for-id (fn [_ _] msgs)]
+                   (nrepl/ls-sessions* conn))]
+      (is (= ["s1" "s2"] (:sessions result))))))
+
+;; ============================================================================
 ;; Edge cases and error handling
 ;; ============================================================================
 

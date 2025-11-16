@@ -93,7 +93,7 @@
     (nc/with-socket host port 500
       (fn [socket out in]
         (let [conn (nc/make-connection socket out in host port)
-              response (nc/send-op conn {"op" "eval" "code" "1"})]
+              response (nc/eval-nrepl* conn "1")]
           (= "shadow.user" (:ns response)))))
     (catch Exception _
       false)))
@@ -282,6 +282,41 @@
                 mode-str (conj mode-str))]
     (str "*==== " (str/join " | " parts) " ====*")))
 
+(defn ensure-session
+  "Ensure we have a valid session for the given connection.
+  Returns session data map with :session-id and :env-type.
+  Reuses existing session if valid, creates new one if needed.
+
+  Takes a connection map with :input, :output, :host, :port."
+  [conn]
+  (let [{:keys [host port input output]} conn
+        existing-data (nc/slurp-nrepl-session host port)
+        existing-id (:session-id existing-data)]
+    ;; Validate existing session
+    (if (nc/validate-session-on-socket output input existing-id)
+      ;; Session still valid, return existing data
+      existing-data
+      ;; Need new session
+      (do
+        ;; Clean up old session file
+        (when existing-id
+          (nc/delete-nrepl-session host port))
+        ;; Create new session using connection API
+        (let [clone-resp (nc/clone-session* conn)
+              new-session (:new-session clone-resp)
+              ;; Detect env-type if not already stored
+              env-type (or (:env-type existing-data)
+                           (let [describe-resp (nc/describe-nrepl* conn)
+                                 base-env (detect-nrepl-env-type describe-resp)
+                                 ;; Check for shadow-cljs
+                                 eval-resp (nc/eval-nrepl* conn "1")
+                                 is-shadow? (= "shadow.user" (:ns eval-resp))]
+                             (if is-shadow? :shadow base-env)))
+              session-data {:session-id new-session
+                            :env-type env-type}]
+          (nc/spit-nrepl-session session-data host port)
+          session-data)))))
+
 (defn eval-expr-with-timeout
   "Evaluate expression with timeout support and interrupt handling.
   If timeout-ms is exceeded, sends an interrupt to the nREPL server.
@@ -294,42 +329,21 @@
     (with-open [s (java.net.Socket. host (nc/coerce-long port))]
       (let [out (java.io.BufferedOutputStream. (.getOutputStream s))
             in (java.io.PushbackInputStream. (.getInputStream s))
-            ;; Try to reuse existing session or create new one
-            existing-session-data (nc/slurp-nrepl-session host port)
-            existing-session-id (:session-id existing-session-data)
-            ;; Validate session on same socket
-            validated-session (nc/validate-session-on-socket out in existing-session-id)
-            session (if validated-session
-                      validated-session
-                      (let [_ (when (and existing-session-id (not validated-session))
-                                (nc/delete-nrepl-session host port))
-                            clone-id (nc/next-id)
-                            _ (nc/write-bencode-msg out {"op" "clone" "id" clone-id})
-                            {new-session :new-session} (nc/read-msg (b/read-bencode in))
-                            ;; Detect env-type if not already stored
-                            env-type (or (:env-type existing-session-data)
-                                         (let [describe-resp (nc/describe-nrepl host port)
-                                               base-env (detect-nrepl-env-type describe-resp)
-                                               is-shadow? (detect-shadow-cljs? host port)]
-                                           (if is-shadow? :shadow base-env)))
-                            session-data {:session-id new-session
-                                          :env-type env-type}]
-                        (nc/spit-nrepl-session session-data host port)
-                        new-session))
-            ;; Re-read session data to get current env-type (may have been updated above)
-            current-session-data (nc/slurp-nrepl-session host port)
-            env-type (or (:env-type current-session-data)
-                         :unknown)
+            ;; Create connection and ensure we have a valid session
+            conn (nc/make-connection s out in host port)
+            session-data (ensure-session conn)
+            session-id (:session-id session-data)
+            env-type (or (:env-type session-data) :unknown)
             ;; Detect CLJS mode only for shadow-cljs environments
             ;; (only shadow can switch between CLJ and CLJS modes)
             cljs-mode? (when (= env-type :shadow)
-                         (detect-cljs-mode out in session))
+                         (detect-cljs-mode out in session-id))
             eval-id (nc/next-id)
             deadline (+ (now-ms) timeout-ms)
             _ (nc/write-bencode-msg out {"op" "eval"
                                          "code" fixed-expr
                                          "id" eval-id
-                                         "session" session})]
+                                         "session" session-id})]
         (loop [m {:vals []
                   :responses []
                   :interrupted false}]
@@ -364,7 +378,7 @@
               (do
                 (println "\n⚠️  Timeout hit, sending nREPL :interrupt …")
                 (nc/write-bencode-msg out {"op" "interrupt"
-                                           "session" session
+                                           "session" session-id
                                            "interrupt-id" eval-id})
                 ;; Read a few responses to observe the interruption
                 (loop [i 0

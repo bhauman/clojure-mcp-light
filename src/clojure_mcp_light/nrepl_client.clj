@@ -270,6 +270,34 @@
 ;; Basic nREPL operations
 ;; ============================================================================
 
+;; Low-level operations that take a connection map
+
+(defn describe-nrepl*
+  "Get nREPL server description using an existing connection.
+   Returns description map."
+  [conn]
+  (send-op conn {"op" "describe"}))
+
+(defn eval-nrepl*
+  "Evaluate code using an existing connection.
+   Returns the full response map."
+  [conn code]
+  (send-op conn {"op" "eval" "code" code}))
+
+(defn clone-session*
+  "Clone a new session using an existing connection.
+   Returns the response map with :new-session."
+  [conn]
+  (send-op conn {"op" "clone"}))
+
+(defn ls-sessions*
+  "List active sessions using an existing connection.
+   Returns the response map with :sessions."
+  [conn]
+  (send-op conn {"op" "ls-sessions"}))
+
+;; High-level convenience operations that create their own socket
+
 (defn describe-nrepl
   "Get nREPL server description including versions and supported ops.
    Returns description map or nil on error."
@@ -278,7 +306,7 @@
     (with-socket host port 500
       (fn [socket out in]
         (let [conn (make-connection socket out in host port)]
-          (send-op conn {"op" "describe"}))))
+          (describe-nrepl* conn))))
     (catch Exception _
       nil)))
 
@@ -290,7 +318,7 @@
     (with-socket host port 500
       (fn [socket out in]
         (let [conn (make-connection socket out in host port)
-              response (send-op conn {"op" "eval" "code" code})]
+              response (eval-nrepl* conn code)]
           (:value response))))
     (catch Exception _
       nil)))
