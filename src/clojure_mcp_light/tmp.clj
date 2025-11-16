@@ -5,8 +5,7 @@
   temporary files with automatic cleanup support via SessionEnd hooks."
   (:require [babashka.fs :as fs]
             [clojure.edn :as edn]
-            [clojure.string :as str]
-            [clojure.java.io :as io]))
+            [clojure.string :as str]))
 
 ;; ============================================================================
 ;; Config & Helpers
@@ -130,14 +129,6 @@
                   "clojure-mcp-light"
                   (str (sanitize sess) "-proj-" proj-id)))))
 
-(defn ensure-dir!
-  "Ensure directory exists, creating it if necessary.
-  Returns the path string."
-  [p]
-  (let [f (io/file p)]
-    (.mkdirs f)
-    p))
-
 ;; ============================================================================
 ;; Convenience Subpaths
 ;; ============================================================================
@@ -146,13 +137,13 @@
   "Get the backups directory for this session/project context.
   Creates directory if it doesn't exist."
   [ctx]
-  (ensure-dir! (str (fs/path (session-root ctx) "backups"))))
+  (str (fs/create-dirs (fs/path (session-root ctx) "backups"))))
 
 (defn nrepl-dir
   "Get the nREPL directory for this session/project context.
   Creates directory if it doesn't exist."
   [ctx]
-  (ensure-dir! (str (fs/path (session-root ctx) "nrepl"))))
+  (str (fs/create-dirs (fs/path (session-root ctx) "nrepl"))))
 
 ;; ============================================================================
 ;; Specific File Paths

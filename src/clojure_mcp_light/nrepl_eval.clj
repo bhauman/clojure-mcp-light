@@ -266,9 +266,8 @@
    Returns nil if file doesn't exist or on error."
   []
   (try
-    (let [file (java.io.File. ".nrepl-port")]
-      (when (.exists file)
-        (parse-long (str/trim (slurp file :encoding "UTF-8")))))
+    (when (fs/exists? ".nrepl-port")
+      (parse-long (str/trim (slurp ".nrepl-port" :encoding "UTF-8"))))
     (catch Exception _
       nil)))
 

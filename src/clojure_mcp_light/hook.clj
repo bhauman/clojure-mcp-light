@@ -179,17 +179,17 @@
   [file-path session-id]
   (let [ctx {:session-id session-id}
         backup (tmp/backup-path ctx file-path)
-        backup-file (io/file backup)
         content (slurp file-path :encoding "UTF-8")]
     ;; Ensure parent directories exist
-    (.mkdirs (.getParentFile backup-file))
+    (when-let [parent (fs/parent backup)]
+      (fs/create-dirs parent))
     (spit backup content :encoding "UTF-8")
     backup))
 
 (defn restore-file
   "Restore file from backup and delete backup"
   [file-path backup-path]
-  (when (.exists (io/file backup-path))
+  (when (fs/exists? backup-path)
     (try
       (let [backup-content (slurp backup-path :encoding "UTF-8")]
         (spit file-path backup-content :encoding "UTF-8")
@@ -200,8 +200,7 @@
 (defn delete-backup
   "Delete backup file if it exists"
   [backup-path]
-  (when (.exists (io/file backup-path))
-    (io/delete-file backup-path)))
+  (fs/delete-if-exists backup-path))
 
 (defn process-pre-write
   "Process content before write operation.
@@ -251,7 +250,7 @@
     new-string - Replacement text
     replace-all - Boolean flag for replace-all behavior"
   [file-path old-string new-string replace-all]
-  (when (.exists (io/file file-path))
+  (when (fs/exists? file-path)
     (let [file-content (slurp file-path :encoding "UTF-8")
           validation (edit-validator/validate-sliding-edit
                       file-content
@@ -367,7 +366,7 @@
     (when (and (clojure-file? file_path) tool_response)
       (timbre/debug "PostEdit: clojure" file_path)
       (let [backup (tmp/backup-path {:session-id session_id} file_path)
-            backup-exists? (.exists (io/file backup))
+            backup-exists? (fs/exists? backup)
             file-content (slurp file_path :encoding "UTF-8")]
         (if (delimiter-error? file-content)
           (let [actual-error? (actual-delimiter-error? file-content)]

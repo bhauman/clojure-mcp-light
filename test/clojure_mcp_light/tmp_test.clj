@@ -169,47 +169,6 @@
       (is (not (str/includes? root "my/special:session"))))))
 
 ;; ============================================================================
-;; Directory Creation Tests
-;; ============================================================================
-
-(deftest ensure-dir-test
-  (testing "creates directory and returns path"
-    (let [test-dir (str (fs/path (fs/temp-dir) "tmp-test-ensure-dir"))]
-      (try
-        ;; Clean up if exists
-        (when (fs/exists? test-dir)
-          (fs/delete-tree test-dir))
-
-        ;; Test creation
-        (let [result (tmp/ensure-dir! test-dir)]
-          (is (= test-dir result))
-          (is (fs/exists? test-dir))
-          (is (fs/directory? test-dir)))
-
-        (finally
-          ;; Clean up
-          (when (fs/exists? test-dir)
-            (fs/delete-tree test-dir))))))
-
-  (testing "is idempotent - calling twice works"
-    (let [test-dir (str (fs/path (fs/temp-dir) "tmp-test-idempotent"))]
-      (try
-        ;; Clean up if exists
-        (when (fs/exists? test-dir)
-          (fs/delete-tree test-dir))
-
-        ;; Test idempotency
-        (tmp/ensure-dir! test-dir)
-        (let [result (tmp/ensure-dir! test-dir)]
-          (is (= test-dir result))
-          (is (fs/exists? test-dir)))
-
-        (finally
-          ;; Clean up
-          (when (fs/exists? test-dir)
-            (fs/delete-tree test-dir)))))))
-
-;; ============================================================================
 ;; Convenience Directory Tests
 ;; ============================================================================
 

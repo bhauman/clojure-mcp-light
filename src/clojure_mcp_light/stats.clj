@@ -1,7 +1,6 @@
 (ns clojure-mcp-light.stats
   "Statistics tracking for delimiter repair events"
   (:require [babashka.fs :as fs]
-            [clojure.java.io :as io]
             [taoensso.timbre :as timbre])
   (:import [java.time Instant]))
 
@@ -49,9 +48,8 @@
 (defn ensure-parent-dir
   "Ensure parent directory exists for the given file path"
   [file-path]
-  (let [parent-dir (.getParentFile (io/file file-path))]
-    (when parent-dir
-      (.mkdirs parent-dir))))
+  (when-let [parent-dir (fs/parent file-path)]
+    (fs/create-dirs parent-dir)))
 
 (defn log-stats!
   "Low-level stats logging function that accepts arbitrary EDN data.
