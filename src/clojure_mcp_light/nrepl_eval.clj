@@ -253,12 +253,6 @@
                     (gather-port-info "localhost" port source current-dir)))]
     (vec results)))
 
-;; Utility functions
-
-(defn now-ms [] (System/currentTimeMillis))
-
-;; Timeout and interrupt handling
-
 (defn detect-cljs-mode
   "Detect if the nREPL session is in CLJS mode by evaluating *clojurescript-version*.
    Returns true if in CLJS mode, false if in CLJ mode.
@@ -284,20 +278,8 @@
   "Format the output divider with namespace, env-type, and mode information.
    For shadow-cljs, always shows cljs-mode or clj-mode.
    For other env-types, omits mode indicator."
-  [ns-str env-type cljs-mode?]
-  (let [env-name (case env-type
-                   :shadow "shadow"
-                   :clj "clj"
-                   :bb "bb"
-                   :basilisp "basilisp"
-                   :scittle "scittle"
-                   :unknown "unknown"
-                   (name env-type))
-        mode-str (when (= env-type :shadow)
-                   (if cljs-mode? "cljs-mode" "clj-mode"))
-        parts (cond-> [ns-str env-name]
-                mode-str (conj mode-str))]
-    (str "*==== " (str/join " | " parts) " ====*")))
+  [ns-str env-type]
+  (str "*======== " ns-str " | " (name env-type) " ========*"))
 
 (defn ensure-session
   "Ensure we have a valid session for the given connection.
@@ -339,32 +321,31 @@
           (nc/spit-nrepl-session session-data host port)
           session-data)))))
 
-(defn process-messages
+(defn output-messages
   "Process nREPL messages by printing output, errors, and values.
    Returns accumulated values from :value fields."
   [messages env-type cljs-mode?]
-  (reduce
-   (fn [vals msg]
-     ;; Print output
-     (when-let [out-str (:out msg)]
-       (print out-str)
-       (flush))
-     ;; Print errors
-     (when-let [err-str (:err msg)]
-       (binding [*out* *err*]
-         (print err-str)
-         (flush)))
-     ;; Print values with divider
-     (when-let [value (:value msg)]
-       (println (str "=> " value))
-       (println (format-divider (:ns msg) env-type cljs-mode?))
-       (flush))
-     ;; Accumulate values
-     (if (:value msg)
-       (conj vals (:value msg))
-       vals))
-   []
-   messages))
+  (when (= env-type :shadow)
+    (println
+     (if cljs-mode?
+       ";; shadow-cljs repl is in CLJS mode"
+       ";; shadow-cljs repl is NOT in CLJS mode
+;; use (shadow/active-builds) to list builds available
+;; use (shadow/repl <build-id>) to jack into a CLJS repl")))
+  (doseq [msg messages]
+    (when-let [out-str (:out msg)]
+      (print out-str)
+      (flush))
+    ;; Print errors
+    (when-let [err-str (:err msg)]
+      (binding [*out* *err*]
+        (print err-str)
+        (flush)))
+    ;; Print values with divider
+    (when-let [value (:value msg)]
+      (println (str "=> " value))
+      (println (format-divider (:ns msg) env-type))
+      (flush))))
 
 (defn eval-expr-with-timeout
   "Evaluate expression with timeout support and interrupt handling.
@@ -392,20 +373,14 @@
                             conn-with-session
                             {"op" "eval"
                              "code" fixed-expr
-                             "id" eval-id})
-                  vals (process-messages messages env-type cljs-mode?)]
-              {:vals vals
-               :responses messages
-               :interrupted false})
+                             "id" eval-id})]
+              (output-messages messages env-type cljs-mode?))
             (catch java.net.SocketTimeoutException _
               (println "\n⚠️  Timeout hit, sending nREPL :interrupt …")
               (nc/write-bencode-msg out {"op" "interrupt"
                                          "session" session-id
                                          "interrupt-id" eval-id})
-              (println "✋ Evaluation interrupted.")
-              {:vals []
-               :responses []
-               :interrupted true})))))))
+              (println "✋ Evaluation interrupted."))))))))
 
 ;; ============================================================================
 ;; Command-line interface
