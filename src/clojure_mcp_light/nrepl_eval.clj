@@ -257,8 +257,6 @@
 
 (defn now-ms [] (System/currentTimeMillis))
 
-(defn ->uuid [] (str (java.util.UUID/randomUUID)))
-
 ;; Timeout and interrupt handling
 
 (defn try-read-msg
