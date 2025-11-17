@@ -2,9 +2,10 @@
   "Claude Code hook for delimiter error detection and repair"
   (:require [babashka.fs :as fs]
             [cheshire.core :as json]
+            [cljfmt.core :as cljfmt]
+            [cljfmt.main]
             [clojure.string :as string]
             [clojure.java.io :as io]
-            [clojure.java.shell :refer [sh]]
             [clojure.tools.cli :refer [parse-opts]]
             [clojure-mcp-light.delimiter-repair
              :refer [delimiter-error? fix-delimiters actual-delimiter-error?]]
@@ -125,53 +126,34 @@
           (string/ends-with? lower-path ".edn")
           (babashka-shebang? file-path)))))
 
-(defn cljfmt-should-fix?
-  "Check if file needs formatting using cljfmt check.
-  Returns true if file needs formatting, false otherwise.
-  Logs stats for formatting state."
-  [file-path]
-  (try
-    (let [result (sh "cljfmt" "check" file-path)
-          exit-code (:exit result)]
-      (case exit-code
-        0 (do
-            (stats/log-stats! :cljfmt-already-formatted {:file-path file-path})
-            false)
-        1 (do
-            (stats/log-stats! :cljfmt-needed-formatting {:file-path file-path})
-            true)
-        ;; Exit code 2 or other = parse error
-        (do
-          (stats/log-stats! :cljfmt-check-error {:file-path file-path
-                                                 :exit-code exit-code})
-          false)))
-    (catch Exception e
-      (stats/log-stats! :cljfmt-check-error {:file-path file-path
-                                             :ex-message (ex-message e)})
-      false)))
-
 (defn run-cljfmt
-  "Run cljfmt fix on the given file path if it needs formatting.
-  Returns true if successful, false otherwise."
+  "Check if file needs formatting using cljfmt.core, then format with cljfmt.main.
+  This avoids shell spawn for check while respecting user's cljfmt config for formatting.
+  Returns true if file was formatted, false otherwise."
   [file-path]
   (when *enable-cljfmt*
     (stats/log-stats! :cljfmt-run {:file-path file-path})
-    (when (cljfmt-should-fix? file-path)
-      (try
-        (timbre/debug "Running cljfmt fix on:" file-path)
-        (let [result (sh "cljfmt" "fix" file-path)]
-          (if (zero? (:exit result))
-            (do
-              (stats/log-stats! :cljfmt-fix-succeeded {:file-path file-path})
-              (timbre/debug "  cljfmt succeeded")
-              true)
-            (do
-              (stats/log-stats! :cljfmt-fix-failed {:file-path file-path})
-              (timbre/debug "  cljfmt failed:" (:err result))
-              false)))
-        (catch Exception e
-          (timbre/debug "  cljfmt error:" (.getMessage e))
-          false)))))
+    (try
+      (let [original (slurp file-path :encoding "UTF-8")
+            formatted (cljfmt/reformat-string original)]
+        (if (not= original formatted)
+          (do
+            (stats/log-stats! :cljfmt-needed-formatting {:file-path file-path})
+            (timbre/debug "Running cljfmt fix on:" file-path)
+            ;; Use cljfmt.main to respect user's environment config
+            (cljfmt.main/-main "fix" file-path)
+            (stats/log-stats! :cljfmt-fix-succeeded {:file-path file-path})
+            (timbre/debug "  cljfmt succeeded")
+            true)
+          (do
+            (stats/log-stats! :cljfmt-already-formatted {:file-path file-path})
+            (timbre/debug "  No formatting needed")
+            false)))
+      (catch Exception e
+        (stats/log-stats! :cljfmt-fix-failed {:file-path file-path
+                                              :ex-message (ex-message e)})
+        (timbre/debug "  cljfmt error:" (.getMessage e))
+        false))))
 
 (defn backup-file
   "Backup file to temp location, returns backup path"

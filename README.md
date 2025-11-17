@@ -87,11 +87,10 @@ Clojure-mcp-light provides two main tools:
 
 ## Requirements
 
-- [Babashka](https://github.com/babashka/babashka) - Fast-starting Clojure scripting environment
+- [Babashka](https://github.com/babashka/babashka) - Fast-starting Clojure scripting environment (includes cljfmt)
 - [bbin](https://github.com/babashka/bbin) - Babashka package manager
 - [parinfer-rust](https://github.com/eraserhd/parinfer-rust) - Delimiter inference and fixing
 - [Claude Code](https://docs.claude.com/en/docs/claude-code) - The Claude CLI tool
-- [cljfmt](https://github.com/weavejester/cljfmt) - (Optional) Code formatting tool for `--cljfmt` flag
 
 ## Installation
 
@@ -171,7 +170,7 @@ Clojure-mcp-light provides two main tools:
    ```
 
    **Configuration notes:**
-   - The `--cljfmt` flag enables automatic code formatting (requires [cljfmt](https://github.com/weavejester/cljfmt) on your PATH)
+   - The `--cljfmt` flag enables automatic code formatting (uses cljfmt bundled with babashka)
    - Add `--stats` to enable delimiter event tracking to `~/.clojure-mcp-light/stats.log`
    - Add `--log-level debug` (or `trace`) for debugging hook operations
    - Add `--log-file PATH` to customize log file location
@@ -186,7 +185,7 @@ Clojure-mcp-light provides two main tools:
    # Test hook manually
    echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | clj-paren-repair-claude-hook
 
-   # Test hook with cljfmt flag (requires cljfmt on PATH)
+   # Test hook with cljfmt flag
    clj-paren-repair-claude-hook --help
    ```
 
