@@ -20,9 +20,9 @@ Whenever you require a namespace always use the `:reload` key.
 
 The following evaluates Clojure code via an nREPL connection.
 
-**Discover available connections:**
+**Discover available nREPL servers:**
 ```bash
-clj-nrepl-eval --connected-ports
+clj-nrepl-eval --discover-ports
 ```
 
 **Evaluate code (requires --port):**
@@ -36,26 +36,44 @@ clj-nrepl-eval --port <port> "<clojure-code>"
 - `-H, --host HOST` - nREPL host (default: 127.0.0.1)
 - `-t, --timeout MILLISECONDS` - Timeout in milliseconds (default: 120000)
 - `-r, --reset-session` - Reset the persistent nREPL session
-- `-c, --connected-ports` - List all active nREPL connections
+- `-c, --connected-ports` - List previously connected nREPL sessions
+- `-d, --discover-ports` - Discover nREPL servers in current directory
 - `-h, --help` - Show help message
 
 ## Workflow
 
-**1. Discover available connections:**
+**1. Discover nREPL servers in current directory:**
+```bash
+clj-nrepl-eval --discover-ports
+# Discovered nREPL servers:
+#
+# In current directory (/path/to/project):
+#   localhost:7888 (clj)
+#   localhost:7889 (bb)
+#
+# Total: 2 servers
+```
+
+**2. Check previously connected sessions (optional):**
 ```bash
 clj-nrepl-eval --connected-ports
 # Active nREPL connections:
-#   127.0.0.1:7888 (session: abc123...)
+#   127.0.0.1:7888 (clj) (session: abc123...)
 #
 # Total: 1 active connection
 ```
 
-**2. Evaluate code:**
+**3. Evaluate code:**
 ```bash
 clj-nrepl-eval -p 7888 "(+ 1 2 3)"
 ```
 
 ## Examples
+
+**Discover servers:**
+```bash
+clj-nrepl-eval --discover-ports
+```
 
 **Basic evaluation:**
 ```bash
@@ -79,7 +97,8 @@ clj-nrepl-eval -p 7888 --reset-session
 
 ## Features
 
-- **Connection discovery** - Use --connected-ports to see available servers
+- **Server discovery** - Use --discover-ports to find all nREPL servers (Clojure, Babashka, shadow-cljs, etc.) in current directory
+- **Session tracking** - Use --connected-ports to see previously connected sessions
 - **Automatic delimiter repair** - fixes missing/mismatched parens before evaluation
 - **Timeout handling** - interrupts long-running evaluations
 - **Persistent sessions** - State persists across invocations
