@@ -259,16 +259,6 @@
 
 ;; Timeout and interrupt handling
 
-(defn try-read-msg
-  "Try to read a message from the input stream with a timeout in milliseconds.
-  Returns nil if timeout occurs, otherwise returns the decoded message."
-  [socket in timeout-ms]
-  (try
-    (.setSoTimeout socket timeout-ms)
-    (nc/read-msg (b/read-bencode in))
-    (catch java.net.SocketTimeoutException _
-      nil)))
-
 (defn detect-cljs-mode
   "Detect if the nREPL session is in CLJS mode by evaluating *clojurescript-version*.
    Returns true if in CLJS mode, false if in CLJ mode.
@@ -349,6 +339,33 @@
           (nc/spit-nrepl-session session-data host port)
           session-data)))))
 
+(defn process-messages
+  "Process nREPL messages by printing output, errors, and values.
+   Returns accumulated values from :value fields."
+  [messages env-type cljs-mode?]
+  (reduce
+   (fn [vals msg]
+     ;; Print output
+     (when-let [out-str (:out msg)]
+       (print out-str)
+       (flush))
+     ;; Print errors
+     (when-let [err-str (:err msg)]
+       (binding [*out* *err*]
+         (print err-str)
+         (flush)))
+     ;; Print values with divider
+     (when-let [value (:value msg)]
+       (println (str "=> " value))
+       (println (format-divider (:ns msg) env-type cljs-mode?))
+       (flush))
+     ;; Accumulate values
+     (if (:value msg)
+       (conj vals (:value msg))
+       vals))
+   []
+   messages))
+
 (defn eval-expr-with-timeout
   "Evaluate expression with timeout support and interrupt handling.
   If timeout-ms is exceeded, sends an interrupt to the nREPL server.
@@ -358,83 +375,37 @@
   [{:keys [host port expr timeout-ms] :or {timeout-ms 120000}}]
   (let [fixed-expr (or (fix-delimiters expr) expr)
         host (or host "localhost")]
-    (with-open [s (java.net.Socket. host (nc/coerce-long port))]
-      (let [out (java.io.BufferedOutputStream. (.getOutputStream s))
-            in (java.io.PushbackInputStream. (.getInputStream s))
-            ;; Create connection and ensure we have a valid session
-            conn (nc/make-connection s out in host port)
-            session-data (ensure-session conn)
-            session-id (:session-id session-data)
-            env-type (or (:env-type session-data) :unknown)
-            ;; Detect CLJS mode only for shadow-cljs environments
-            ;; (only shadow can switch between CLJ and CLJS modes)
-            cljs-mode? (when (= env-type :shadow)
-                         (detect-cljs-mode out in session-id))
-            eval-id (nc/next-id)
-            deadline (+ (now-ms) timeout-ms)
-            _ (nc/write-bencode-msg out {"op" "eval"
-                                         "code" fixed-expr
-                                         "id" eval-id
-                                         "session" session-id})]
-        (loop [m {:vals []
-                  :responses []
-                  :interrupted false}]
-          (let [remaining (max 0 (- deadline (now-ms)))]
-            (if (pos? remaining)
-              ;; Wait up to 250ms at a time for responses so we can honor timeout
-              (if-let [resp (try-read-msg s in (min remaining 250))]
-                (do
-                  ;; Handle output
-                  (when-let [out-str (:out resp)]
-                    (print out-str)
-                    (flush))
-                  (when-let [err-str (:err resp)]
-                    (binding [*out* *err*]
-                      (print err-str)
-                      (flush)))
-                  (when-let [value (:value resp)]
-                    (println (str "=> " value))
-                    (println (format-divider (:ns resp) env-type cljs-mode?))
-                    (flush))
-                  ;; Collect values
-                  (let [m (cond-> (update m :responses conj resp)
-                            (:value resp)
-                            (update :vals conj (:value resp)))]
-                    ;; Stop when server says we're done
-                    (if (some #{"done"} (:status resp))
-                      m
-                      (recur m))))
-                ;; No message this tick; loop again until timeout
-                (recur m))
-              ;; Timeout hit — send interrupt
-              (do
-                (println "\n⚠️  Timeout hit, sending nREPL :interrupt …")
-                (nc/write-bencode-msg out {"op" "interrupt"
-                                           "session" session-id
-                                           "interrupt-id" eval-id})
-                ;; Read a few responses to observe the interruption
-                (loop [i 0
-                       result (assoc m :interrupted true)]
-                  (if (< i 20)
-                    (if-let [resp (try-read-msg s in 250)]
-                      (do
-                        (when-let [out-str (:out resp)]
-                          (print out-str)
-                          (flush))
-                        (when-let [err-str (:err resp)]
-                          (binding [*out* *err*]
-                            (print err-str)
-                            (flush)))
-                        (if (or (some #{"interrupted"} (:status resp))
-                                (some #{"done"} (:status resp)))
-                          (do
-                            (println "✋ Evaluation interrupted.")
-                            result)
-                          (recur (inc i) (update result :responses conj resp))))
-                      (recur (inc i) result))
-                    (do
-                      (println "✋ Evaluation interrupted.")
-                      result)))))))))))
+    (nc/with-socket host (nc/coerce-long port) timeout-ms
+      (fn [socket out in]
+        (let [conn (nc/make-connection socket out in host port)
+              session-data (ensure-session conn)
+              session-id (:session-id session-data)
+              env-type (or (:env-type session-data) :unknown)
+              conn-with-session (assoc conn :session-id session-id)
+              ;; Detect CLJS mode only for shadow-cljs environments
+              cljs-mode? (when (= env-type :shadow)
+                           (detect-cljs-mode out in session-id))
+              eval-id (nc/next-id)]
+          (try
+            ;; Evaluate expression using messages-for-id
+            (let [messages (nc/messages-for-id
+                            conn-with-session
+                            {"op" "eval"
+                             "code" fixed-expr
+                             "id" eval-id})
+                  vals (process-messages messages env-type cljs-mode?)]
+              {:vals vals
+               :responses messages
+               :interrupted false})
+            (catch java.net.SocketTimeoutException _
+              (println "\n⚠️  Timeout hit, sending nREPL :interrupt …")
+              (nc/write-bencode-msg out {"op" "interrupt"
+                                         "session" session-id
+                                         "interrupt-id" eval-id})
+              (println "✋ Evaluation interrupted.")
+              {:vals []
+               :responses []
+               :interrupted true})))))))
 
 ;; ============================================================================
 ;; Command-line interface

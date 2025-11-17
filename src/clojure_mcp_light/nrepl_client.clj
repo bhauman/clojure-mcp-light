@@ -51,9 +51,7 @@
   Continues until EOF or error. Returns nils after stream ends."
   [in]
   (repeatedly
-   #(try
-      (b/read-bencode in)
-      (catch Exception _ nil))))
+   #(b/read-bencode in)))
 
 (defn decode-messages
   "Map raw bencode message sequence through decoder.
@@ -133,18 +131,21 @@
   conn: connection map with :input, :output, and optionally :session-id
   op-map: operation map (e.g., {'op' 'describe'})
 
-  If conn has :session-id, it will be included in the request."
+  If op-map does not contain 'id', one will be generated.
+  If op-map does not contain 'session' and conn has :session-id, it will be added."
   [conn op-map]
   (let [{:keys [input output session-id]} conn
-        id (next-id)
+        ;; Use provided id or generate new one
+        id (get op-map "id" (next-id))
+        session (get op-map "session" session-id)
         msg (cond-> (assoc op-map "id" id)
-              session-id (assoc "session" session-id))
+              session (assoc "session" session))
         _ (write-bencode-msg output msg)
         msgs (->> (message-seq input)
                   (decode-messages)
                   (filter-id id))]
     (take-until-done (cond->> msgs
-                       session-id (filter-session session-id)))))
+                       session (filter-session session)))))
 
 (defn merge-response
   "Combines the provided seq of response messages into a single response map.
