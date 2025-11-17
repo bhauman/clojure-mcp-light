@@ -1,9 +1,6 @@
 {:paths ["src"]
 
- :deps {borkdude/edamame {:mvn/version "1.4.25"}
-        cheshire/cheshire {:mvn/version "5.13.0"}
-        org.clojure/tools.cli {:mvn/version "1.1.230"}
-        nrepl/bencode {:mvn/version "1.2.0"}}
+ :deps {dev.weavejester/cljfmt {:mvn/version "0.15.5"}}
 
  :tasks
  {test {:doc "Run tests"
