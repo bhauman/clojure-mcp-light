@@ -85,6 +85,16 @@
       (or (get versions :sci-nrepl) (get versions "sci-nrepl")) :scittle
       :else :unknown)))
 
+(defn detect-shadow-cljs?*
+  "Check if nREPL server is running shadow-cljs using an existing connection.
+   Returns true if evaluating code without a session results in :ns \"shadow.user\", false otherwise."
+  [conn]
+  (try
+    (let [response (nc/eval-nrepl* conn "1")]
+      (= "shadow.user" (:ns response)))
+    (catch Exception _
+      false)))
+
 (defn detect-shadow-cljs?
   "Check if nREPL server is running shadow-cljs.
    Returns true if evaluating code without a session results in :ns \"shadow.user\", false otherwise."
@@ -92,9 +102,8 @@
   (try
     (nc/with-socket host port 500
       (fn [socket out in]
-        (let [conn (nc/make-connection socket out in host port)
-              response (nc/eval-nrepl* conn "1")]
-          (= "shadow.user" (:ns response)))))
+        (let [conn (nc/make-connection socket out in host port)]
+          (detect-shadow-cljs?* conn))))
     (catch Exception _
       false)))
 
@@ -159,6 +168,59 @@
     (catch Exception _
       [])))
 
+(defn gather-port-info
+  "Gather information about a nREPL port using a single connection.
+   Returns map with port info or nil if connection fails."
+  [host port source current-dir]
+  (try
+    (nc/with-socket host port 500
+      (fn [socket out in]
+        (let [conn (nc/make-connection socket out in host port)
+              sessions-resp (nc/ls-sessions* conn)
+              sessions (:sessions sessions-resp)]
+          (if sessions
+            ;; Valid nREPL - get env type and project dir
+            (let [describe-resp (nc/describe-nrepl* conn)
+                  base-env-type (detect-nrepl-env-type describe-resp)
+                  ;; Check for shadow-cljs (overrides base env-type)
+                  is-shadow? (detect-shadow-cljs?* conn)
+                  env-type (if is-shadow? :shadow base-env-type)
+                  dir-expr (fetch-project-directory-exp env-type)
+                  project-dir (when dir-expr
+                                (last (:value (nc/eval-nrepl* conn dir-expr))))
+                  ;; Strip quotes if present (e.g., "\"/path\"" -> "/path")
+                  project-dir (when project-dir
+                                (str/replace project-dir #"^\"|\"$" ""))
+                  matches-cwd (and project-dir
+                                   (= project-dir current-dir))]
+              {:host host
+               :port port
+               :source source
+               :valid true
+               :session-count (count sessions)
+               :env-type env-type
+               :project-dir project-dir
+               :matches-cwd matches-cwd})
+            ;; Invalid nREPL
+            {:host host
+             :port port
+             :source source
+             :valid false
+             :session-count 0
+             :env-type nil
+             :project-dir nil
+             :matches-cwd false}))))
+    (catch Exception _
+      ;; Connection failed
+      {:host host
+       :port port
+       :source source
+       :valid false
+       :session-count 0
+       :env-type nil
+       :project-dir nil
+       :matches-cwd false})))
+
 (defn discover-nrepl-ports
   "Discover potential nREPL ports by:
    1. Checking .nrepl-port file in current directory
@@ -185,43 +247,10 @@
         all-ports (distinct (concat (when port-file-port [port-file-port])
                                     lsof-ports))
 
-        ;; Validate each port and gather info
+        ;; Validate each port and gather info using a single connection per port
         results (for [port all-ports]
-                  (let [source (if (= port port-file-port) :nrepl-port-file :lsof)
-                        sessions (nc/ls-sessions "localhost" port)
-                        valid (some? sessions)]
-                    (if valid
-                      ;; Valid nREPL - get env type and project dir
-                      (let [describe-resp (nc/describe-nrepl "localhost" port)
-                            base-env-type (detect-nrepl-env-type describe-resp)
-                            ;; Check for shadow-cljs (overrides base env-type)
-                            is-shadow? (detect-shadow-cljs? "localhost" port)
-                            env-type (if is-shadow? :shadow base-env-type)
-                            dir-expr (fetch-project-directory-exp env-type)
-                            project-dir (when dir-expr
-                                          (nc/eval-nrepl "localhost" port dir-expr))
-                            ;; Strip quotes if present (e.g., "\"/path\"" -> "/path")
-                            project-dir (when project-dir
-                                          (str/replace project-dir #"^\"|\"$" ""))
-                            matches-cwd (and project-dir
-                                             (= project-dir current-dir))]
-                        {:host "localhost"
-                         :port port
-                         :source source
-                         :valid true
-                         :session-count (count sessions)
-                         :env-type env-type
-                         :project-dir project-dir
-                         :matches-cwd matches-cwd})
-                      ;; Invalid nREPL
-                      {:host "localhost"
-                       :port port
-                       :source source
-                       :valid false
-                       :session-count 0
-                       :env-type nil
-                       :project-dir nil
-                       :matches-cwd false})))]
+                  (let [source (if (= port port-file-port) :nrepl-port-file :lsof)]
+                    (gather-port-info "localhost" port source current-dir)))]
     (vec results)))
 
 ;; Utility functions
