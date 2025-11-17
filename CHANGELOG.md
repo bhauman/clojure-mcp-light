@@ -2,6 +2,70 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2025-11-17
+
+### Summary
+
+This release makes parinfer-rust optional by adding parinferish as a pure Clojure fallback, eliminating external dependencies while maintaining full delimiter repair functionality. The release also includes significant nREPL improvements with better port discovery, enhanced session management, and comprehensive refactoring for cleaner architecture.
+
+### Added
+- **Parinferish fallback** - Pure Clojure delimiter repair when parinfer-rust unavailable
+  - Automatic backend selection: prefers parinfer-rust, falls back to parinferish
+  - New `parinferish-repair` function for pure Clojure delimiter fixing
+  - New `parinfer-rust-available?` function to detect parinfer-rust on PATH
+  - Unified `repair-delimiters` function handles backend selection automatically
+  - No external dependencies required for basic delimiter repair
+  - Comprehensive test coverage for new repair functions
+
+- **Enhanced nREPL port discovery** - Better workflow for finding and connecting to REPL servers
+  - `--discover-ports` now shows servers grouped by directory
+  - Shadow-cljs detection using `:ns` field from eval
+  - Cross-platform UTF8 encoding protection for reliable output
+  - Improved directory-based server organization
+
+- **nREPL namespace differentiation** - Better LLM understanding of evaluation context
+  - Namespace information included in output dividers
+  - Helps Claude understand which namespace code was evaluated in
+  - Improved context for multi-namespace projects
+
+### Changed
+- **Bundled cljfmt** - Now uses cljfmt from Babashka instead of external binary
+  - Eliminates another external dependency
+  - Consistent behavior across platforms
+  - Simpler installation process
+
+- **Improved nREPL architecture** - Major refactoring for better maintainability
+  - Extracted nrepl-client library with lazy sequence API
+  - Connection-based API with `*` suffix pattern for stateful operations
+  - Consolidated session validation following `*` suffix pattern
+  - Simplified `eval-expr-with-timeout` using connection-based API
+  - Optimized `discover-nrepl-ports` to use single connection per port
+  - Better separation of concerns between client and evaluation logic
+
+- **Enhanced file detection** - Broader Clojure file support
+  - Added `.lpy` support for Lispy Python files
+  - Case-insensitive extension matching (`.CLJ`, `.Clj`, etc.)
+  - Babashka shebang detection (`#!/usr/bin/env bb`, `#!/usr/bin/bb`)
+
+- **Documentation improvements**
+  - Updated README and CLAUDE.md to reflect optional parinfer-rust
+  - Added GEMINI.md for project overview and instructions
+  - Consolidated hook examples using global settings
+  - Better installation instructions with fewer requirements
+
+### Removed
+- **Unused nREPL functions** - Cleaned up high-level convenience functions
+  - Removed `->uuid` function (unused)
+  - Removed edit validator and validation tracking (overly complex)
+  - Simplified codebase by removing unnecessary abstractions
+  - Better focus on core functionality
+
+### Fixed
+- **nREPL session management** - More robust session handling
+  - Better session data management with improved validation
+  - Cleaner filesystem usage with session-scoped temp files
+  - Proper cleanup of session directories
+
 ## [0.1.1] - 2025-11-11
 
 ### Summary
@@ -78,6 +142,7 @@ This release introduces edit validation metrics, enhanced nREPL connection disco
   - All tests passing
   - Better test coverage for new features
 
+[0.2.0]: https://github.com/bhauman/clojure-mcp-light/releases/tag/v0.2.0
 [0.1.1]: https://github.com/bhauman/clojure-mcp-light/releases/tag/v0.1.1
 [0.1.0]: https://github.com/bhauman/clojure-mcp-light/releases/tag/v0.1.0
 
