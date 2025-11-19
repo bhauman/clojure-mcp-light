@@ -186,6 +186,73 @@
   [backup-path]
   (fs/delete-if-exists backup-path))
 
+(defn fix-and-format-file!
+  "Core logic for fixing delimiters and formatting a Clojure file in-place.
+   This is the shared implementation used by both the hook and standalone tools.
+
+   Parameters:
+   - file-path: path to the file to process
+   - enable-cljfmt: boolean to enable cljfmt formatting after delimiter fix
+   - stats-event-prefix: string prefix for stats events (e.g., 'PostToolUse:Edit' or 'paren-repair')
+
+   Returns map with:
+   - :success - true if file was processed successfully (no unfixable errors)
+   - :delimiter-fixed - true if a delimiter error was detected and fixed
+   - :formatted - true if file was formatted with cljfmt
+   - :message - human-readable message describing what happened"
+  [file-path enable-cljfmt stats-event-prefix]
+  (try
+    (let [file-content (slurp file-path :encoding "UTF-8")
+          has-delimiter-error? (delimiter-error? file-content)
+          actual-error? (when has-delimiter-error?
+                          (actual-delimiter-error? file-content))]
+
+      (when (and has-delimiter-error? actual-error?)
+        (stats/log-event! :delimiter-error stats-event-prefix file-path))
+
+      (timbre/debug "  Delimiter error:" has-delimiter-error?)
+
+      (if has-delimiter-error?
+        ;; Has delimiter error - try to fix
+        (do
+          (timbre/debug "  Delimiter error detected, attempting fix")
+          (if-let [fixed-content (fix-delimiters file-content)]
+            (do
+              (when actual-error?
+                (stats/log-event! :delimiter-fixed stats-event-prefix file-path))
+              (timbre/debug "  Fix successful, applying fix")
+              (spit file-path fixed-content :encoding "UTF-8")
+              (let [formatted? (when enable-cljfmt
+                                 (run-cljfmt file-path))]
+                {:success true
+                 :delimiter-fixed true
+                 :formatted (boolean formatted?)
+                 :message "Delimiter errors fixed and formatted"}))
+            (do
+              (when actual-error?
+                (stats/log-event! :delimiter-fix-failed stats-event-prefix file-path))
+              (timbre/error "  Delimiter fix failed")
+              {:success false
+               :delimiter-fixed false
+               :formatted false
+               :message "Could not fix delimiter errors"})))
+        ;; No delimiter error - just format if enabled
+        (do
+          (stats/log-event! :delimiter-ok stats-event-prefix file-path)
+          (timbre/debug "  No delimiter errors")
+          (let [formatted? (when enable-cljfmt
+                             (run-cljfmt file-path))]
+            {:success true
+             :delimiter-fixed false
+             :formatted (boolean formatted?)
+             :message (if formatted? "Formatted" "No changes needed")}))))
+    (catch Exception e
+      (timbre/error "  Unexpected error processing file:" (.getMessage e))
+      {:success false
+       :delimiter-fixed false
+       :formatted false
+       :message (str "Error: " (.getMessage e))})))
+
 (defn process-pre-write
   "Process content before write operation.
   Returns fixed content if Clojure file has delimiter errors, nil otherwise."
@@ -285,54 +352,34 @@
       (timbre/debug "PostEdit: clojure" file_path)
       (let [backup (tmp/backup-path {:session-id session_id} file_path)
             backup-exists? (fs/exists? backup)
-            file-content (slurp file_path :encoding "UTF-8")]
-        (if (delimiter-error? file-content)
-          (let [actual-error? (actual-delimiter-error? file-content)]
-            (when actual-error?
-              (stats/log-event! :delimiter-error "PostToolUse:Edit" file_path))
-            (timbre/debug "  Delimiter error detected, attempting fix")
-            (if-let [fixed-content (fix-delimiters file-content)]
-              (try
-                (when actual-error?
-                  (stats/log-event! :delimiter-fixed "PostToolUse:Edit" file_path))
-                (timbre/debug "  Fix successful, applying fix and deleting backup")
-                (spit file_path fixed-content :encoding "UTF-8")
-                (when *enable-cljfmt*
-                  (run-cljfmt file_path))
-                nil
-                (finally
-                  (when backup-exists?
-                    (delete-backup backup))))
+            result (fix-and-format-file! file_path *enable-cljfmt* "PostToolUse:Edit")]
+
+        (try
+          (if (:success result)
+            ;; Success - delete backup and return nil
+            (do
+              (timbre/debug "  Processing successful, deleting backup")
+              nil)
+            ;; Failure - handle backup restore based on revert setting
+            (if (and *enable-revert* backup-exists?)
               (do
-                (when actual-error?
-                  (stats/log-event! :delimiter-fix-failed "PostToolUse:Edit" file_path))
-                (if (and *enable-revert* backup-exists?)
-                  (do
-                    (timbre/debug "  Fix failed, restoring from backup:" backup)
-                    (restore-file file_path backup)
-                    {:decision "block"
-                     :reason (str "Delimiter errors could not be auto-fixed. File was restored from backup to previous state: " file_path)
-                     :hookSpecificOutput
-                     {:hookEventName "PostToolUse"
-                      :additionalContext "There are delimiter errors in the file. So we restored from backup."}})
-                  (do
-                    (timbre/debug "  Fix failed, revert disabled - blocking without restore")
-                    (when backup-exists?
-                      (delete-backup backup))
-                    {:decision "block"
-                     :reason (str "Delimiter errors could not be auto-fixed in file: " file_path)
-                     :hookSpecificOutput
-                     {:hookEventName "PostToolUse"
-                      :additionalContext "There are delimiter errors in the file. Revert is disabled, so the file was not restored."}})))))
-          (try
-            (stats/log-event! :delimiter-ok "PostToolUse:Edit" file_path)
-            (timbre/debug "  No delimiter errors, deleting backup")
-            (when *enable-cljfmt*
-              (run-cljfmt file_path))
-            nil
-            (finally
-              (when backup-exists?
-                (delete-backup backup)))))))))
+                (timbre/debug "  Fix failed, restoring from backup:" backup)
+                (restore-file file_path backup)
+                {:decision "block"
+                 :reason (str "Delimiter errors could not be auto-fixed. File was restored from backup to previous state: " file_path)
+                 :hookSpecificOutput
+                 {:hookEventName "PostToolUse"
+                  :additionalContext "There are delimiter errors in the file. So we restored from backup."}})
+              (do
+                (timbre/debug "  Fix failed, revert disabled - blocking without restore")
+                {:decision "block"
+                 :reason (str "Delimiter errors could not be auto-fixed in file: " file_path)
+                 :hookSpecificOutput
+                 {:hookEventName "PostToolUse"
+                  :additionalContext "There are delimiter errors in the file. Revert is disabled, so the file was not restored."}})))
+          (finally
+            (when backup-exists?
+              (delete-backup backup))))))))
 
 (defmethod process-hook ["SessionEnd" nil]
   [{:keys [session_id]}]
