@@ -5,7 +5,7 @@
   "Standalone CLI tool for fixing delimiter errors and formatting Clojure files"
   (:require [babashka.fs :as fs]
             [clojure.string :as string]
-            [clojure-mcp-light.hook :refer [clojure-file? fix-and-format-file!]]
+            [clojure-mcp-light.hook :as hook :refer [clojure-file? fix-and-format-file!]]
             [clojure-mcp-light.stats :as stats]
             [taoensso.timbre :as timbre]))
 
@@ -72,7 +72,8 @@
       (timbre/set-config! {:appenders {}})
 
       (binding [stats/*enable-stats* false
-                stats/*stats-file-path* stats-path]
+                stats/*stats-file-path* stats-path
+                hook/*enable-cljfmt* true]
         (try
           (let [results (doall (map process-file args))
                 successes (filter :success results)

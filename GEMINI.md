@@ -24,3 +24,16 @@ The `bb.edn` file also defines two binaries, `clj-paren-repair-claude-hook` and 
 # Development Conventions
 
 The project uses `cljfmt` for code formatting. The `clj-paren-repair-claude-hook` tool has an option to automatically format the code with `cljfmt` after fixing delimiter errors.
+
+# Parenthesis Repair
+
+The command `clj-paren-repair` is currently installed on your path.
+
+**IMPORTANT:** You SHOULD NOT try to manually repair parenthesis errors. If you encounter a file with unbalanced parentheses or delimiters, run the `clj-paren-repair` tool on that file instead of attempting to fix the delimiters yourself. IF the tool doesn't work report to the user that they need to fix the delimiter error.
+
+### `clj-paren-repair` Tool Behavior
+
+The `clj-paren-repair` tool exhibits the following behavior:
+
+*   **Delimiter Repair:** It successfully identifies and fixes common delimiter errors, such as unbalanced parentheses.
+*   **Code Formatting (`cljfmt`):** The tool automatically formats files using `cljfmt` whenever it processes them, regardless of whether a delimiter error was fixed or not.
