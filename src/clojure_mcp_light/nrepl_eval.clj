@@ -162,7 +162,7 @@
    Returns map with port info or nil if connection fails."
   [host port source current-dir]
   (try
-    (nc/with-socket host port 500
+    (nc/with-socket host port 250
       (fn [socket out in]
         (let [conn (nc/make-connection socket out in host port)
               sessions-resp (nc/ls-sessions* conn)
@@ -236,10 +236,11 @@
         all-ports (distinct (concat (when port-file-port [port-file-port])
                                     lsof-ports))
 
-        ;; Validate each port and gather info using a single connection per port
-        results (for [port all-ports]
-                  (let [source (if (= port port-file-port) :nrepl-port-file :lsof)]
-                    (gather-port-info "localhost" port source current-dir)))]
+        ;; Validate each port and gather info in parallel using a single connection per port
+        results (pmap (fn [port]
+                        (let [source (if (= port port-file-port) :nrepl-port-file :lsof)]
+                          (gather-port-info "localhost" port source current-dir)))
+                      all-ports)]
     (vec results)))
 
 (defn detect-cljs-mode
