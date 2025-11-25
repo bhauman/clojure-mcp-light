@@ -33,6 +33,9 @@
       (e/parse-string-all content {:all true
                                    :features #{:bb :clj :cljs :cljr :default} #_(constantly true)
                                    :read-cond :allow
+                                   ;; TODO this is when we think bb has been updated
+                                   ;; :features (constantly true)
+                                   ;; :read-cond second
                                    :readers (fn [_tag] (fn [data] data))
                                    :auto-resolve name})
       {:status :success :file path}

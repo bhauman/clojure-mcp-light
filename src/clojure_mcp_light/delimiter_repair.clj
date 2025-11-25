@@ -18,6 +18,9 @@
   [s]
   (try
     (e/parse-string-all s {:all true
+                           ;; TODO this is when we think bb has been updated
+                           ;; :features (constantly true)
+                           ;; :read-cond second
                            :features #{:bb :clj :cljs :cljr :default} #_(constantly true)
                            :read-cond :allow
                            :readers (fn [_tag] (fn [data] data))
