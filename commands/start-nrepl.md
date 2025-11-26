@@ -4,11 +4,11 @@ description: Start an nREPL server in the background
 
 When the user invokes this command, start an nREPL server in the background by following these steps:
 
-## Step 1: Check CLAUDE.md for REPL Instructions
+## Step 1: Check CLAUDE.md or AGENTS.md for REPL Instructions
 
-First, check if a `CLAUDE.md` file exists in the project root:
+First, check if a `CLAUDE.md` or `AGENTS.md` file exists in the project root:
 
-1. If `CLAUDE.md` exists, read it and look for a section about starting the REPL or nREPL
+1. If `CLAUDE.md` or `AGENTS.md` exists, read it and look for a section about starting the REPL or nREPL
 2. Look for keywords like "REPL", "nREPL", "start", "run", or similar
 3. If specific instructions are found, follow those instructions instead of the default steps below
 
