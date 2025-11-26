@@ -190,6 +190,58 @@ Clojure-mcp-light provides two main tools:
    clj-paren-repair-claude-hook --help
    ```
 
+### Install via Nix
+
+If you use Nix, you can add this package to your development environment:
+
+1. Create a `shell.nix` in your project:
+
+   ```nix
+   { pkgs ? import <nixpkgs> {} }:
+
+   let
+     clojure-mcp-light = pkgs.callPackage (pkgs.fetchFromGitHub {
+       owner = "bhauman";
+       repo = "clojure-mcp-light";
+       rev = "v0.1.1";
+       sha256 = "120qc7xzqdrm70scvkd08lf1zf89v9fj4z7bqk00ngz33y86xagx";
+     }) {};
+   in
+   pkgs.mkShell {
+     buildInputs = [
+       clojure-mcp-light
+       pkgs.babashka
+       pkgs.clj-kondo
+     ];
+   }
+   ```
+
+   Or use it locally from a checkout:
+
+   ```nix
+   { pkgs ? import <nixpkgs> {} }:
+
+   let
+     clojure-mcp-light = pkgs.callPackage ./path/to/clojure-mcp-light/package.nix {};
+   in
+   pkgs.mkShell {
+     buildInputs = [
+       clojure-mcp-light
+       pkgs.babashka
+       pkgs.clj-kondo
+     ];
+   }
+   ```
+
+2. Enter the Nix shell:
+   ```bash
+   nix-shell
+   ```
+
+   This will make both `clj-paren-repair-claude-hook` and `clj-nrepl-eval` available in your PATH, along with parinfer-rust as a dependency.
+
+3. Configure Claude Code hooks as described in step 4 of the bbin installation above.
+
 ## Slash Commands
 
 > Experimental
