@@ -22,7 +22,7 @@ These tools solve both problems.
 | Tool | Use Case |
 |------|----------|
 | [`clj-nrepl-eval`](#clj-nrepl-eval-llm-nrepl-connection-without-an-mcp) | REPL evaluation from any LLM |
-| [`clj-paren-repair-claude-hook`](#clj-paren-repair-claude-hook) | Claude Code (or any LLM with hooks) |
+| [`clj-paren-repair-claude-hook`](#clj-paren-repair-claude-hook) | Claude Code (or any LLM that supports Claude hooks) |
 | [`clj-paren-repair`](#clj-paren-repair) | Gemini CLI, Codex CLI, any LLM with shell |
 
 ## Quick Install
@@ -210,6 +210,8 @@ intercepts Write/Edit operations and automatically fixes delimiter
 errors before they hit the filesystem.
 
 > In my usage these Hooks have fixed 100% of the errors detected.
+
+**Note:** The intention is to create and release client-specific hook tools as other LLM clients add hook support. For example, when Gemini CLI adds hooks, a `clj-paren-repair-gemini-hook` tool will be made available.
 
 **Why hooks instead of MCP tools?**
 
