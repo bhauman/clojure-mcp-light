@@ -27,10 +27,11 @@ These tools solve both problems.
 
 ## Quick Install
 
-**Install hook (for automatic delimiter repair in Claude Code):**
+**Install hook tool:**
 ```bash
 bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1
 ```
+**Note:** The hook will not work unless configured in `~/.claude/settings.json` - see configuration section below.
 
 **Install nREPL eval tool:**
 ```bash
