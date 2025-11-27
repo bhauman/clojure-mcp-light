@@ -152,7 +152,7 @@ mkdir -p ~/.claude/commands
 cp commands/*.md ~/.claude/commands/
 ```
 
-**Gemini CLI** - uses `.toml` files ([docs](https://cloud.google.com/blog/topics/developers-practitioners/gemini-cli-custom-slash-commands)):
+**Gemini CLI** - uses `.toml` files ([docs](https://google-gemini.github.io/gemini-cli/docs/cli/custom-commands.html)):
 
 ```bash
 # Global: ~/.gemini/commands/
