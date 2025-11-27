@@ -280,6 +280,11 @@ Add to `~/.claude/settings.json`:
 
 ### Statistics Tracking
 
+Statistics tracking helps validate that these tools are working well.
+At some point Clojurists may not need them—either because models stop
+producing delimiter errors, or because assistants include parinfer
+internally. Tracking helps us know when that day comes.
+
 Add `--stats` to track delimiter events:
 
 ```bash
@@ -297,6 +302,23 @@ Use the included stats summary script:
 
 ```bash
 ./scripts/stats-summary.bb
+```
+
+Sample output:
+
+```
+clojure-mcp-light Utility Validation
+============================================================
+
+Delimiter Repair Metrics
+========================
+  Total Writes/Edits:           829
+  Clean Code (no errors):       794  ( 95.8% of total)
+  Errors Detected:               35  (  4.2% of total)
+  Successfully Fixed:            35  (100.0% of errors)
+  Failed to Fix:                  0  (  0.0% of errors)
+  Parse Errors:                   0  (  0.0% of fix attempts)
+
 ```
 
 ### Logging
