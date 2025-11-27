@@ -2,9 +2,7 @@
 
 > This is not an MCP.
 
-Simple Clojure support for LLM coding assistants.
-
-CLI tools for LLM coding assistants working with Clojure.
+Simple CLI tools for LLM coding assistants working with Clojure.
 
 **TL;DR:** Three CLI tools for Clojure development with LLM coding assistants:
 - `clj-nrepl-eval` - nREPL evaluation from command line
@@ -52,7 +50,7 @@ to configure an MCP server.
 - Maintains persistent sessions per target
 - Auto-discovers nREPL ports
 - Auto-repairs delimiters before evaluation
-- helpful output that guides LLMs
+- Helpful output that guides LLMs
 
 ### Installation
 
@@ -71,7 +69,7 @@ bbin install . --as clj-nrepl-eval --main-opts '["-m" "clojure-mcp-light.nrepl-e
 Verify that it is installed and working by starting a nREPL and then doing a test eval.
 
 ```bash
-# this missing paren is there to demionstrate that delimiters are repaired automatically
+# this missing paren is there to demonstrate that delimiters are repaired automatically
 clj-nrepl-eval -p 7888 "(+ 1 2 3" 
 # => 6
 ```
@@ -348,7 +346,26 @@ Combine with `clj-paren-repair` for complete coverage - hooks handle Edit/Write 
 
 ## clj-paren-repair
 
-Shell command for LLMs to fix delimiter errors on demand.
+A shell command for LLM coding assistants that don't support hooks
+(like Gemini CLI and Codex CLI). When the LLM encounters a delimiter
+error, it calls this tool to fix it instead of trying to repair it manually.
+
+**The key insight:** When we observe an AI in the "Paren Edit Death Loop"—repeatedly
+failing to fix delimiter errors—we're witnessing a desperate search for a solution.
+`clj-paren-repair` provides an escape route that short-circuits this behavior.
+
+**Why this works:** Modern SOTA models produce very accurate edits with only
+small delimiter discrepancies. The errors are minor enough that parinfer
+can reliably fix them. This simple solution works surprisingly well.
+
+**Hooks vs clj-paren-repair:** Hooks are the clear winner when available—they
+use zero tokens and happen without LLM invocation. However, `clj-paren-repair`
+works universally with any LLM that has shell access. When Gemini CLI gets
+hooks support, we should use them. Until then, `clj-paren-repair` is sufficient.
+
+**Using both together:** Even with hooks configured, having `clj-paren-repair`
+available provides complete coverage. Hooks handle Edit/Write tools, but LLMs
+can also edit files via Bash (sed, awk, etc.). Having both tools catches all cases.
 
 ### How it helps
 
@@ -356,12 +373,6 @@ Shell command for LLMs to fix delimiter errors on demand.
 - LLM calls it when it encounters delimiter errors
 - Works with **any** LLM that has shell access
 - Automatically formats files with cljfmt
-
-### Tested with
-
-- Gemini CLI (Gemini 2.5)
-- Codex CLI
-- Any LLM with Bash/shell tool
 
 ### Installation
 
@@ -378,29 +389,32 @@ bbin install . --as clj-paren-repair --main-opts '["-m" "clojure-mcp-light.paren
 
 ```bash
 clj-paren-repair path/to/file.clj
+clj-paren-repair src/core.clj src/util.clj test/core_test.clj
 clj-paren-repair --help
 ```
 
 ### Setup: Custom Instructions
 
-Add to your LLM's custom instructions file (`GEMINI.md`, `AGENTS.md`, etc.):
+Add to your global or local custom instructions file
+(`GEMINI.md`, `AGENTS.md`, `CLAUDE.md` etc.):
 
 ```markdown
 # Clojure Parenthesis Repair
 
 The command `clj-paren-repair` is installed on your path.
 
+\`\`\`bash
+clj-paren-repair <files>
+clj-paren-repair path/to/file1.clj path/to/file2.clj path/to/file3.clj
+\`\`\`
+
 **IMPORTANT:** Do NOT try to manually repair parenthesis errors.
-If you encounter unbalanced delimiters, run `clj-paren-repair <file>`
+If you encounter unbalanced delimiters, run `clj-paren-repair` on the file
 instead of attempting to fix them yourself. If the tool doesn't work,
 report to the user that they need to fix the delimiter error manually.
 
 The tool automatically formats files with cljfmt when it processes them.
 ```
-
-### Why this works
-
-Modern SOTA models produce very accurate edits with only small delimiter discrepancies. The tool provides an escape route that short-circuits the death loop behavior. When the AI encounters a delimiter error, it fixes it with `clj-paren-repair` and moves on.
 
 ---
 
@@ -448,25 +462,8 @@ You can use both together. Configure ClojureMCP to expose only `:clojure_eval` i
  :enable-resources []}
 ```
 
----
-
-## Example
-
-Before (with delimiter error):
-```clojure
-(defn broken [x]
-  (let [result (* x 2]
-    result))
-```
-
-After (automatically fixed):
-```clojure
-(defn broken [x]
-  (let [result (* x 2)]
-    result))
-```
-
-The missing `)` is automatically added by parinfer.
+You can also use ClojureMCP's prompts, resources, and agents
+functionality to create a suite of tools that work across LLM clients.
 
 ---
 
