@@ -1,531 +1,454 @@
 # clojure-mcp-light
 
-> **This is NOT an MCP server.**
+> This is not an MCP.
 
-**TL;DR:**
-- Two CLI tools: parinfer hook + nREPL evaluator
-- Integrates via Claude Code hooks for clean diffs
-- Minimal approach: just fix delimiters + REPL eval
+Simple Clojure support for LLM coding assistants.
 
-The goal of this project is to provide a ClojureMCP-like experience to
-Claude Code minimally with a couple of simple cli tools.
+CLI tools for LLM coding assistants working with Clojure.
 
-These tools together provide a better Clojure development experience
-with Claude Code.
+**TL;DR:** Three CLI tools for Clojure development with LLM coding assistants:
+- `clj-nrepl-eval` - nREPL evaluation from command line
+- `clj-paren-repair-claude-hook` - Auto-fix delimiters via hooks (Claude Code)
+- `clj-paren-repair` - On-demand delimiter fix (Gemini CLI, Codex, etc.)
 
-They help solve the two main problems:
+## The Problem
 
-* faulty delimiters in LLM output
-* connecting to a stateful Clojure nREPL
+LLMs produce delimiter errors when editing Clojure code - mismatched parentheses, brackets, and braces. This leads to the **"Paren Edit Death Loop"** where the AI repeatedly fails to fix delimiter errors, wasting tokens and blocking progress.
 
-But the main reason you may want to try this approach is to have an
-unadulterated Claude Code experience that works with Clojure code.
+Secondary problem: LLM coding assistants need to connect to a stateful Clojure REPL for evaluation.
 
-Since this relies on hooks which work with the default Claude Code
-editing tools the UI is unaffected by integrating this into your
-Claude Code setup. I.e. you will be able to read and confirm code
-diffs and you will no longer see poorly formatted clojure-mcp tool
-calls.
+These tools solve both problems.
 
-> You can setup `clojure-mcp-light` once and then edit it any Clojure
-> project with Claude Code with no additional configuration.
+## Quick Reference
 
-These scripts benefit from patterns developed and validated in ClojureMCP.
-
-This can be used alongside ClojureMCP as there are no hard
-incompatibilities, in fact, you can install these hooks at the root
-level scope of your Claude Code config to allow you to edit Clojure
-files without error.
-
-> **⚠️ Experimental**: This project is in early stages. I am still
-> using this heavily so that I can assess how well it works. Expect
-> changes including a change to the name of the repo.
-
-## Philosophy
-
-This project explores **minimal tooling** for Clojure development with
-Claude Code. Rather than using a comprehensive MCP server, we're
-testing whether smart parinfer application combined with a robust REPL
-evaluation cli script is sufficient for productive Clojure development.
-
-**Why minimal tooling?**
-
-- Claude Code may be fine-tuned to use its own built-in tools effectively
-- Simpler tooling is easier to maintain and understand
-- Potentially supports Claude Code Web (which doesn't support MCP servers)
-- If minimal tools are sufficient, that's valuable for the Clojure community to know
-- Less complexity means fewer moving parts and potential issues
-
-**How is this different from clojure-mcp?**
-
-[ClojureMCP](https://github.com/bhauman/clojure-mcp) is a full coding
-assistant (minus the LLM loop) with comprehensive Clojure
-tooling. This project takes the opposite approach: find the minimum
-viable tooling needed to get decent Clojure support while leveraging
-Claude Code's native capabilities.
-
-If this minimal approach proves sufficient, it demonstrates that Clojure developers can achieve good results with just:
-- Smart delimiter fixing (parinfer)
-- REPL evaluation on the cli
-- Claude Code's built-in tools
-
-## Overview
-
-Clojure-mcp-light provides two main tools:
-
-1. **Automatic delimiter fixing hooks** (`clj-paren-repair-claude-hook`) - Detects and fixes delimiter errors (mismatched brackets, parentheses, braces) when working with Clojure files in Claude Code. The hook system intercepts file operations and transparently fixes delimiter issues before they cause problems.
-
-2. **nREPL evaluation tool** (`clj-nrepl-eval`) - A command-line tool for evaluating Clojure code via nREPL with automatic delimiter repair, timeout handling, and formatted output.
-
-## Features
-
-- **Automatic delimiter error detection** using edamame parser
-- **Intelligent delimiter repair** with automatic backend selection:
-  - Prefers [parinfer-rust](https://github.com/eraserhd/parinfer-rust) when available (faster, battle-tested)
-  - Falls back to [parinferish](https://github.com/oakmac/parinferish) (pure Clojure, no external dependencies)
-- **Write operations**: Detects and fixes delimiter errors before writing files
-- **Edit operations**: Creates backup before edits, auto-fixes after, or restores from backup if unfixable
-- **Optional code formatting**: `--cljfmt` flag enables automatic code formatting with cljfmt after write/edit operations
-- **Statistics tracking**: `--stats` flag enables event tracking for delimiter errors, fixes, and successes
-- **Automatic cleanup**: SessionEnd hook removes temporary files when Claude Code sessions terminate
-- **Session-scoped temp files**: Organized directory structure with per-project and per-session isolation
-- **Real-time feedback**: Communicates fixes and issues back to Claude Code via hook responses
+| Tool | Use Case | Token Cost |
+|------|----------|------------|
+| `clj-nrepl-eval` | REPL evaluation from any LLM | Some |
+| `clj-paren-repair-claude-hook` | Claude Code (or any LLM with hooks) | Zero |
+| `clj-paren-repair` | Gemini CLI, Codex CLI, any LLM with shell | Some |
 
 ## Requirements
 
-- [Babashka](https://github.com/babashka/babashka) - Fast-starting Clojure scripting environment (includes cljfmt)
+- [Babashka](https://github.com/babashka/babashka) - Fast Clojure scripting (includes cljfmt)
 - [bbin](https://github.com/babashka/bbin) - Babashka package manager
-- [Claude Code](https://docs.claude.com/en/docs/claude-code) - The Claude CLI tool
 
 **Optional:**
-- [parinfer-rust](https://github.com/eraserhd/parinfer-rust) - Delimiter inference and fixing - clojure-mcp-light will use this when its available
+- [parinfer-rust](https://github.com/eraserhd/parinfer-rust) - Faster delimiter repair when available
 
-## Installation
+---
 
-### Install via bbin
+## `clj-nrepl-eval` LLM nREPL connection without an MCP
 
-1. Install bbin if you haven't already:
+nREPL client for evaluating Clojure code from the command line. 
 
-   See https://github.com/babashka/bbin for more details.
+This provides coding assistants access to REPL eval via shell
+calls. It is specifically designed for LLM interaction and allows
+the LLM to discover and manage its REPL sessions without needing
+to configure an MCP server.
 
-2. Install clojure-mcp-light (run both commands):
+### How it helps
 
-   From GitHub:
-   ```bash
-   bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.0
-   ```
-   ```bash
-   bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.0 --as clj-nrepl-eval --main-opts '["-m"  "clojure-mcp-light.nrepl-eval"]'
-   ```
+- Lets LLMs evaluate code in a running REPL
+- Maintains persistent sessions per target
+- Auto-discovers nREPL ports
+- Auto-repairs delimiters before evaluation
+- helpful output that guides LLMs
 
-   Or from local checkout:
-   ```bash
-   bbin install .
-   ```
-   ```bash
-   bbin install . --as clj-nrepl-eval --main-opts '["-m"  "clojure-mcp-light.nrepl-eval"]'
-   ```
+### Installation
 
-   This is to install both commands:
-   - `clj-paren-repair-claude-hook` - Hook for automatic delimiter fixing
-   - `clj-nrepl-eval` - nREPL evaluation tool
-
-4. Configure Claude Code hooks in `~/.claude/settings.json`:
-   ```json
-   {
-     "hooks": {
-       "PreToolUse": [
-         {
-           "matcher": "Write|Edit",
-           "hooks": [
-             {
-               "type": "command",
-               "command": "clj-paren-repair-claude-hook --cljfmt"
-             }
-           ]
-         }
-       ],
-       "PostToolUse": [
-         {
-           "matcher": "Edit|Write",
-           "hooks": [
-             {
-               "type": "command",
-               "command": "clj-paren-repair-claude-hook --cljfmt"
-             }
-           ]
-         }
-       ],
-       "SessionEnd": [
-         {
-           "hooks": [
-             {
-               "type": "command",
-               "command": "clj-paren-repair-claude-hook --cljfmt"
-             }
-           ]
-         }
-       ]
-     }
-   }
-   ```
-
-   **Configuration notes:**
-   - The `--cljfmt` flag enables automatic code formatting (uses cljfmt bundled with babashka)
-   - Add `--stats` to enable delimiter event tracking to `~/.clojure-mcp-light/stats.log`
-   - Add `--log-level debug` (or `trace`) for debugging hook operations
-   - Add `--log-file PATH` to customize log file location
-   - Remove `--cljfmt` if you don't want automatic formatting
-   - The SessionEnd hook automatically cleans up temporary files when Claude Code sessions terminate
-
-5. Verify installation:
-   ```bash
-   # Test nREPL evaluation (requires running nREPL server on port 7888)
-   clj-nrepl-eval -p 7888 "(+ 1 2 3)"
-
-   # Test hook manually
-   echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | clj-paren-repair-claude-hook
-
-   # Test hook with cljfmt flag
-   clj-paren-repair-claude-hook --help
-   ```
-
-## Slash Commands
-
-> Experimental
-
-This project includes custom slash commands for Claude Code to streamline your Clojure workflow:
-
-### Available Commands
-
-- **/start-nrepl** - Automatically starts an nREPL server in the background, detects the port, and creates a `.nrepl-port` file
-- **/clojure-nrepl** - Provides information about using `clj-nrepl-eval` for REPL-driven development
-
-### Setup
-
-Copy or symlink the command files to your project's `.claude/commands/` directory:
+Installation is in two steps, installing the command line tool and
+then telling the coding assistants about `clj-nrepl-eval`.
 
 ```bash
-# Create the commands directory if it doesn't exist
-mkdir -p .claude/commands
-
-# Copy commands
-cp commands/*.md .claude/commands/
-
-# Or create symlinks (recommended - stays in sync with updates)
-ln -s $(pwd)/commands/clojure-nrepl.md .claude/commands/clojure-nrepl.md
-ln -s $(pwd)/commands/start-nrepl.md .claude/commands/start-nrepl.md
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.0 --as clj-nrepl-eval --main-opts '["-m" "clojure-mcp-light.nrepl-eval"]'
 ```
 
-### Usage
-
-Once set up, you can use these commands in Claude Code conversations:
-
-```
-/start-nrepl
+Or from local checkout:
+```bash
+bbin install . --as clj-nrepl-eval --main-opts '["-m" "clojure-mcp-light.nrepl-eval"]'
 ```
 
-This will start an nREPL server and set up the `.nrepl-port` file automatically.
-
-```
-/clojure-nrepl
-```
-
-This provides Claude with context about REPL evaluation, making it easier to work with your running Clojure environment.
-
-## clj-paren-repair-claude-hook - Hook Tool
-
-The hook command for automatic delimiter fixing with optional code formatting and logging.
-
-### Features
-
-- **Automatic delimiter detection** using edamame parser
-- **Intelligent delimiter repair** with automatic backend selection (parinfer-rust when available, parinferish fallback)
-- **Optional code formatting** with cljfmt
-- **Configurable file logging** for debugging hook operations
-
-### Usage
+Verify that it is installed and working by starting a nREPL and then doing a test eval.
 
 ```bash
-# Basic usage (silent, no logging)
-clj-paren-repair-claude-hook
+# this missing paren is there to demionstrate that delimiters are repaired automatically
+clj-nrepl-eval -p 7888 "(+ 1 2 3" 
+# => 6
+```
 
-# With automatic code formatting
-clj-paren-repair-claude-hook --cljfmt
+### Telling the LLM about `clj-nrepl-eval`
 
-# With debug logging to default location (./.clojure-mcp-light-hooks.log)
-clj-paren-repair-claude-hook --log-level debug --cljfmt
+Choose one or more of these approaches. Each has trade-offs:
 
-# With trace logging to custom file
-clj-paren-repair-claude-hook --log-level trace --log-file /tmp/hook-debug.log
+| Approach | Availability | When info is used | Best for |
+|----------|--------------|-------------------|----------|
+| Custom instructions | All LLM clients | Always in context | Simplest, most effective |
+| Slash commands | Most coding assistants | When you invoke it | On-demand awareness |
+| Skills | Claude Code only | LLM pulls when needed | Automatic, context-aware |
 
-# Show help
-clj-paren-repair-claude-hook --help
+Each can be installed **locally** (per-project) or **globally** (all projects).
+
+#### Custom instructions
+
+The simplest and perhaps most effective approach. Works with all LLM coding assistants.
+
+Add to your custom instructions file:
+- **Global**: `~/.claude/CLAUDE.md`, `~/.gemini/GEMINI.md`, `~/.codex/AGENTS.md`
+- **Local**: `./CLAUDE.md`, `./GEMINI.md`, `./AGENTS.md` in project root
+
+```markdown
+# Clojure REPL Evaluation
+
+The command `clj-nrepl-eval` is installed on your path for evaluating Clojure code via nREPL.
+
+**Discover nREPL servers:**
+\`\`\`bash
+clj-nrepl-eval --discover-ports
+\`\`\`
+
+**Evaluate code:**
+\`\`\`bash
+clj-nrepl-eval -p <port> "<clojure-code>"
+
+# With timeout (milliseconds)
+clj-nrepl-eval -p <port> --timeout 5000 "<clojure-code>"
+\`\`\`
+
+The REPL session persists between evaluations - namespaces and state are maintained.
+Always use `:reload` when requiring namespaces to pick up changes.
+```
+
+#### Slash commands
+
+Lets you interject REPL awareness into the conversation when you need it. Available in most coding assistants (installation varies by client).
+
+- **/start-nrepl** - Starts an nREPL server in the background and reports the port
+- **/clojure-nrepl** - Provides detailed usage info for `clj-nrepl-eval`
+
+**Claude Code** - uses `.md` files in `commands/` directory:
+
+```bash
+# Global: ~/.claude/commands/
+# Local: .claude/commands/
+mkdir -p ~/.claude/commands
+cp commands/*.md ~/.claude/commands/
+```
+
+**Gemini CLI** - uses `.toml` files ([docs](https://cloud.google.com/blog/topics/developers-practitioners/gemini-cli-custom-slash-commands)):
+
+```bash
+# Global: ~/.gemini/commands/
+# Local: .gemini/commands/
+```
+
+**Codex CLI** - uses `.md` files ([docs](https://developers.openai.com/codex/guides/slash-commands)):
+
+```bash
+# Global: ~/.codex/prompts/
+```
+
+#### Skills
+
+Allows the LLM to pull in REPL information when it's actually needed. Currently Claude Code only.
+
+```bash
+# Global (all projects)
+mkdir -p ~/.claude/skills
+cp skills/clojure-eval.md ~/.claude/skills/
+
+# Local (this project only)
+mkdir -p .claude/skills
+cp skills/clojure-eval.md .claude/skills/
+```
+
+### Usage Tips
+
+**Easiest strategy:** Start nREPL before your coding session
+
+Start an nREPL before asking the LLM to use one. This way it can
+simply discover the port of the server in the current project
+with `--discover-ports`. Minimal ceremony to start interacting with the REPL.
+
+**Advanced:** Have the LLM start and manage your nREPL sessions
+
+Claude and other LLMs are perfectly capable of starting your nREPL
+server in the background and reading the port from the output. They
+can also kill the server if it gets hung on a bad eval.
+
+### Customize to your workflow
+
+Once you start working with `clj-nrepl-eval` inside a coding assistant,
+it will quickly become clear how to adjust the above prompts to fit
+your specific projects and workflow.
+
+
+---
+
+## clj-paren-repair-claude-hook
+
+[Claude Code Hooks](https://code.claude.com/docs/en/hooks) let you run
+shell commands before or after Claude's tool calls. This hook
+intercepts Write/Edit operations and automatically fixes delimiter
+errors before they hit the filesystem.
+
+> In my usage these Hooks have fixed 100% of the errors detected.
+
+**Why hooks instead of MCP tools?**
+
+With MCP-based editing tools, you lose Claude Code's native UI
+integration — tool calls are poorly formatted and difficult to
+read. Hooks let Claude Code operate normally with its native
+Edit/Write tools, preserving the clean diff UI you're used to, while
+transparently fixing delimiter errors behind the scenes.
+
+### How it helps
+
+- Fixes errors transparently before they're written to disk
+- Uses **zero tokens** - happens outside LLM invocation
+- Preserves Claude Code's native diff UI and tool integration
+- Install once globally, works on all Clojure file edits
+
+### Installation
+
+```bash
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.0
+```
+
+Or from local checkout:
+```bash
+bbin install .
+```
+
+### Configuration
+
+Add to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "clj-paren-repair-claude-hook --cljfmt"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "clj-paren-repair-claude-hook --cljfmt"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "clj-paren-repair-claude-hook --cljfmt"
+          }
+        ]
+      }
+    ]
+  }
+}
 ```
 
 ### Options
 
-- `--cljfmt` - Enable automatic code formatting with cljfmt after write/edit operations
-- `--stats` - Enable statistics tracking for delimiter events (logs to `~/.clojure-mcp-light/stats.log`)
-- `--log-level LEVEL` - Set log level for file logging (trace, debug, info, warn, error, fatal, report)
+- `--cljfmt` - Enable automatic code formatting with cljfmt
+- `--stats` - Enable statistics tracking (logs to `~/.clojure-mcp-light/stats.log`)
+- `--log-level LEVEL` - Set log level (trace, debug, info, warn, error)
 - `--log-file PATH` - Path to log file (default: `./.clojure-mcp-light-hooks.log`)
 - `-h, --help` - Show help message
 
-### Logging
+### How It Works
 
-By default, the hook runs silently with no logging. To enable logging for debugging:
+- **PreToolUse hooks** run before Write/Edit operations, fixing content before it's written
+- **PostToolUse hooks** run after Edit operations, fixing any issues introduced
+- **SessionEnd hook** cleans up temporary files when Claude Code sessions end
 
-```bash
-# Debug level logging (recommended for troubleshooting)
-clj-paren-repair-claude-hook --log-level debug
+**Write operations**: If delimiter errors are detected, the content is fixed via parinfer before writing. If unfixable, the write is blocked.
 
-# Trace level logging (maximum verbosity)
-clj-paren-repair-claude-hook --log-level trace
-
-# Custom log file location
-clj-paren-repair-claude-hook --log-level debug --log-file ~/hook-debug.log
-```
-
-Log files include timestamps, namespaces, line numbers, and structured output for easy debugging.
-
-**Enabling logging in hooks:**
-
-To enable logging when running as a Claude Code hook, add the `--log-level` flag to your hook command. For example:
-```
-clj-paren-repair-claude-hook --log-level debug --cljfmt
-```
+**Edit operations**: A backup is created before the edit. After the edit, if delimiter errors exist, they're fixed automatically. If unfixable, the file is restored from backup.
 
 ### Statistics Tracking
 
-The `--stats` flag enables tracking of delimiter events to help analyze LLM-generated code quality. Add it to your hook command:
-```
+Add `--stats` to track delimiter events:
+
+```bash
 clj-paren-repair-claude-hook --cljfmt --stats
 ```
 
-**Event types tracked:**
-- `:delimiter-error` - Delimiter error detected in generated code
-- `:delimiter-fixed` - Delimiter error successfully auto-fixed
-- `:delimiter-fix-failed` - Delimiter error could not be auto-fixed
-- `:delimiter-ok` - No delimiter errors (clean code)
-
-**Log format:**
-
-Stats are written to `~/.clojure-mcp-light/stats.log` as EDN entries:
+Stats are written to `~/.clojure-mcp-light/stats.log` as EDN:
 
 ```clojure
-{:event-type :delimiter-error, :hook-event "PreToolUse", :timestamp "2025-11-09T14:23:45.123Z", :file-path "/Users/me/project/src/core.clj"}
-{:event-type :delimiter-fixed, :hook-event "PreToolUse", :timestamp "2025-11-09T14:23:45.234Z", :file-path "/Users/me/project/src/core.clj"}
-{:event-type :delimiter-ok, :hook-event "PostToolUse", :timestamp "2025-11-09T14:25:10.456Z", :file-path "/Users/me/project/src/util.clj"}
+{:event-type :delimiter-error, :hook-event "PreToolUse", :timestamp "2025-11-09T14:23:45.123Z", :file-path "/path/to/file.clj"}
+{:event-type :delimiter-fixed, :hook-event "PreToolUse", :timestamp "2025-11-09T14:23:45.234Z", :file-path "/path/to/file.clj"}
 ```
 
-**Analyzing stats:**
-
-Use the included stats summary script for a quick overview:
+Use the included stats summary script:
 
 ```bash
-# Show comprehensive stats summary
 ./scripts/stats-summary.bb
-
-# Example output:
-# Delimiter Event Statistics
-# ============================================================
-#
-# Total Events: 42
-#
-# Events by Type
-# ==============
-#   delimiter-ok               28  ( 66.7%)
-#   delimiter-error             8  ( 19.0%)
-#   delimiter-fixed             5  ( 11.9%)
-#   delimiter-fix-failed        1  (  2.4%)
-#
-# Events by Hook
-# ==============
-#   PreToolUse:Write           30
-#   PostToolUse:Edit           12
-#
-# Top 10 Files by Event Count
-# ===========================
-#       8  src/core.clj
-#       6  src/util.clj
-#       4  test/core_test.clj
-#
-# Success Metrics
-# ===============
-#   Clean Code (no errors):        28
-#   Errors Detected:                8
-#   Successfully Fixed:             5
-#   Failed to Fix:                  1
-#
-#   Fix Success Rate:           62.5%
-#   Clean Code Rate:            77.8%
 ```
 
-Or use Babashka for custom analysis:
+### Logging
+
+Enable logging for debugging:
 
 ```bash
-# Count total events
-cat ~/.clojure-mcp-light/stats.log | wc -l
+# Debug level
+clj-paren-repair-claude-hook --log-level debug --cljfmt
 
-# Filter by event type
-bb -e "(require '[clojure.edn :as edn]) \
-  (->> (slurp \"$HOME/.clojure-mcp-light/stats.log\") \
-       (clojure.string/split-lines) \
-       (map edn/read-string) \
-       (filter #(= :delimiter-error (:event-type %))) \
-       (count))"
-
-# Group by event type
-bb -e "(require '[clojure.edn :as edn]) \
-  (->> (slurp \"$HOME/.clojure-mcp-light/stats.log\") \
-       (clojure.string/split-lines) \
-       (map edn/read-string) \
-       (group-by :event-type) \
-       (map (fn [[k v]] [k (count v)])) \
-       (into {}))"
-
-# Find files with most delimiter errors
-bb -e "(require '[clojure.edn :as edn]) \
-  (->> (slurp \"$HOME/.clojure-mcp-light/stats.log\") \
-       (clojure.string/split-lines) \
-       (map edn/read-string) \
-       (filter #(= :delimiter-error (:event-type %))) \
-       (group-by :file-path) \
-       (map (fn [[k v]] [k (count v)])) \
-       (sort-by second >) \
-       (take 5))"
+# Trace level (maximum verbosity)
+clj-paren-repair-claude-hook --log-level trace --log-file ~/hook-debug.log
 ```
 
-## clj-nrepl-eval - nREPL Evaluation Tool
+### Verify Installation
 
-The main command-line tool for evaluating Clojure code via nREPL with automatic delimiter repair.
+```bash
+echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | clj-paren-repair-claude-hook
+```
 
-### Features
+**Verify hooks are running in Claude Code:**
 
-- **Direct nREPL communication** using bencode protocol
-- **Automatic delimiter repair** before evaluation (uses parinfer-rust when available, parinferish fallback)
-- **Timeout and interrupt handling** for long-running evaluations
-- **Formatted output** with dividers between results
-- **Server discovery** via `--discover-ports` flag (finds nREPL servers in current directory)
-- **Connection tracking** via `--connected-ports` flag (shows previously connected sessions)
-- **Persistent sessions** with per-target session management
+After Claude Code edits a Clojure file, expand the tool output to see
+hook messages. In the terminal, press `ctrl-r` (or click the edit) and
+look for these messages surrounding the diff:
+
+```
+⎿ PreToolUse:Edit hook succeeded:
+  ... edit diff ...
+⎿ PostToolUse:Edit hook succeeded:
+```
+
+If you don't see these messages, check that your `~/.claude/settings.json`
+hook configuration is correct.
+
+**Test delimiter repair:**
+
+Prompt Claude Code to intentionally write malformed Clojure (e.g., missing
+closing paren) to verify the hook fixes it automatically.
+
+
+### Pro tip
+
+Combine with `clj-paren-repair` for complete coverage - hooks handle Edit/Write tools, but LLMs can also edit via Bash (sed, awk). Having both tools catches all cases.
+
+---
+
+## clj-paren-repair
+
+Shell command for LLMs to fix delimiter errors on demand.
+
+### How it helps
+
+- Provides escape route from "Paren Edit Death Loop"
+- LLM calls it when it encounters delimiter errors
+- Works with **any** LLM that has shell access
+- Automatically formats files with cljfmt
+
+### Tested with
+
+- Gemini CLI (Gemini 2.5)
+- Codex CLI
+- Any LLM with Bash/shell tool
+
+### Installation
+
+```bash
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.0 --as clj-paren-repair --main-opts '["-m" "clojure-mcp-light.paren-repair"]'
+```
+
+Or from local checkout:
+```bash
+bbin install . --as clj-paren-repair --main-opts '["-m" "clojure-mcp-light.paren-repair"]'
+```
 
 ### Usage
 
 ```bash
-# Discover nREPL servers in current directory
-clj-nrepl-eval --discover-ports
-
-# Check previously connected sessions
-clj-nrepl-eval --connected-ports
-
-# Evaluate code (port required)
-clj-nrepl-eval -p 7888 "(+ 1 2 3)"
-
-# Specify port explicitly
-clj-nrepl-eval --port 7888 "(println \"Hello\")"
-
-# Set timeout (in milliseconds)
-clj-nrepl-eval -p 7888 --timeout 5000 "(Thread/sleep 10000)"
-
-# Reset session
-clj-nrepl-eval -p 7888 --reset-session
-
-# Show help
-clj-nrepl-eval --help
+clj-paren-repair path/to/file.clj
+clj-paren-repair --help
 ```
 
-### Automatic Delimiter Repair
+### Setup: Custom Instructions
 
-The tool automatically fixes missing or mismatched delimiters before evaluation:
+Add to your LLM's custom instructions file (`GEMINI.md`, `AGENTS.md`, etc.):
 
-```bash
-# This will be auto-fixed from "(+ 1 2 3" to "(+ 1 2 3)"
-clj-nrepl-eval -p 7888 "(+ 1 2 3"
-# => 6
+```markdown
+# Clojure Parenthesis Repair
+
+The command `clj-paren-repair` is installed on your path.
+
+**IMPORTANT:** Do NOT try to manually repair parenthesis errors.
+If you encounter unbalanced delimiters, run `clj-paren-repair <file>`
+instead of attempting to fix them yourself. If the tool doesn't work,
+report to the user that they need to fix the delimiter error manually.
+
+The tool automatically formats files with cljfmt when it processes them.
 ```
 
-### Options
+### Why this works
 
-- `-p, --port PORT` - nREPL port (required)
-- `-H, --host HOST` - nREPL host (default: 127.0.0.1)
-- `-t, --timeout MILLISECONDS` - Timeout in milliseconds (default: 120000)
-- `-r, --reset-session` - Reset the persistent nREPL session
-- `-c, --connected-ports` - List previously connected nREPL sessions
-- `-d, --discover-ports` - Discover nREPL servers in current directory
-- `-h, --help` - Show help message
+Modern SOTA models produce very accurate edits with only small delimiter discrepancies. The tool provides an escape route that short-circuits the death loop behavior. When the AI encounters a delimiter error, it fixes it with `clj-paren-repair` and moves on.
 
-### Workflow
+---
 
-**1. Start an nREPL server**
+## Using Multiple Tools Together
 
-First, you need to start an nREPL server. Here are common ways:
+**Best practice for Claude Code users:**
+1. Configure hooks for automatic fixing (zero tokens)
+2. Also have `clj-paren-repair` available for Bash-based edits
+3. Use `clj-nrepl-eval` for REPL evaluation
 
-```bash
-# Using Clojure CLI with nREPL dependency
-clj -Sdeps '{:deps {nrepl/nrepl {:mvn/version "1.0.0"}}}' -M -m nrepl.cmdline
+**For other LLM clients (Gemini CLI, Codex, etc.):**
+1. Install `clj-paren-repair` and add custom instructions
+2. Use `clj-nrepl-eval` for REPL evaluation
 
-# Using Leiningen
-lein repl :headless
+---
 
-# Using Babashka
-bb nrepl-server 7888
+## What These Tools Solve (and Don't)
+
+**Problem A: Bad delimiters in output** - SOLVED
+
+These tools fix mismatched/missing parentheses in edit results.
+
+**Problem B: old_string matching failures** - NOT SOLVED
+
+Sometimes LLMs struggle to produce an `old_string` that exactly matches the file content, causing edit failures. This is less common with newer models.
+
+For full solution to Problem B: [ClojureMCP](https://github.com/bhauman/clojure-mcp) sexp-editing tools.
+
+---
+
+## Why Not Just Use ClojureMCP?
+
+[ClojureMCP](https://github.com/bhauman/clojure-mcp) provides comprehensive Clojure tooling, but:
+
+- ClojureMCP tools aren't native to the client - no diff UI, no integrated output formatting
+- ClojureMCP duplicates/conflicts with tools the client already has
+- These CLI tools work *with* the client's native tools instead of replacing them
+
+You can use both together. Configure ClojureMCP to expose only `:clojure_eval` if desired:
+
+```clojure
+;; .clojure-mcp/config.edn
+{:enable-tools [:clojure_eval]
+ :enable-prompts []
+ :enable-resources []}
 ```
 
-The server will print its port when it starts, or you can check the `.nrepl-port` file if one was created.
-
-**2. Discover available nREPL servers**
-
-Use `--discover-ports` to find nREPL servers running in the current directory:
-
-```bash
-clj-nrepl-eval --discover-ports
-# Discovered nREPL servers in current directory (/path/to/project):
-#   localhost:7889 (bb)
-#   localhost:55077 (clj)
-#
-# Total: 2 servers in current directory
-```
-
-Or use `--connected-ports` to see which servers you've previously connected to:
-
-```bash
-clj-nrepl-eval --connected-ports
-# Active nREPL connections:
-#   127.0.0.1:7888 (session: abc123...)
-#   127.0.0.1:7889 (session: xyz789...)
-#
-# Total: 2 active connections
-```
-
-**3. Evaluate code**
-
-Use the `-p` or `--port` flag to specify which server to use:
-
-```bash
-clj-nrepl-eval -p 7888 "(+ 1 2 3)"
-# => 6
-```
-
-**Error Handling**
-
-If you don't specify a port, you'll see:
-```
-Error: --port is required
-Use --connected-ports to see available connections
-```
-
-## How It Works
-
-The system uses Claude Code's hook mechanism to intercept file operations:
-
-- **PreToolUse hooks** run before Write/Edit operations, allowing inspection and modification of content
-- **PostToolUse hooks** run after Edit operations, enabling post-processing and restoration if needed
-- **Detection → Fix → Feedback** flow ensures Claude is informed about what happened
-
-**Write operations**: If delimiter errors are detected, the content is fixed via parinfer before writing. If unfixable, the write is blocked.
-
-**Edit operations**: A backup is created before the edit. After the edit, if delimiter errors exist, they're fixed automatically. If unfixable, the file is restored from backup and Claude is notified.
+---
 
 ## Example
 
@@ -543,34 +466,13 @@ After (automatically fixed):
     result))
 ```
 
-The missing `)` is automatically added by parinfer, and Claude receives feedback about the fix.
+The missing `)` is automatically added by parinfer.
 
-## Using with ClojureMCP
-
-These integrations don't conflict with a
-[ClojureMCP](https://github.com/bhauman/clojure-mcp) integration. In
-fact, if you would rather have ClojureMCP handle your Clojure
-evaluation needs you can setup ClojureMCP to only expose its
-`:clojure_eval` tool.
-
-In your project directory place a `.clojure-mcp/config.edn` file:
-
-```clojure
-{:enable-tools [:clojure_eval]}
-```
-
-You can also hide the default ClojureMCP prompts and resources if you
-don't want them availble in Claude Code:
-
-```clojure
-{:enable-tools [:clojure_eval]
- :enable-prompts []
- :enable-resources []}
-```
+---
 
 ## Contributing
 
-Since this is experimental, contributions and ideas are welcome! Feel free to:
+Contributions and ideas are welcome! Feel free to:
 
 - Open issues with suggestions or bug reports
 - Submit PRs with improvements
