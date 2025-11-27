@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] - 2025-11-27
+
+This release adds a new standalone `clj-paren-repair` tool for LLM clients without hook support (Gemini CLI, Codex CLI), significantly improves nREPL port discovery performance, and includes comprehensive documentation updates that reorganize the README around the three CLI tools.
+
+### Added
+- **clj-paren-repair standalone tool** - New command for LLMs without hook support
+  - Works with Gemini CLI, Codex CLI, and any LLM with shell access
+  - Provides escape route from "Paren Edit Death Loop"
+  - Automatically formats with cljfmt when processing files
+  - Shared delimiter repair logic with hook tool
+
+- **Help flag for clj-paren-repair** - Added `-h`/`--help` support
+
+- **AGENTS.md support** - Now includes AGENTS.md in prompts for Codex CLI compatibility
+
+### Changed
+- **Parallelized port discovery** - nREPL port discovery now runs in parallel with reduced timeout (250ms)
+  - Much faster `--discover-ports` execution
+  - Better responsiveness when scanning multiple ports
+
+- **Documentation reorganization** - README now structured around three CLI tools
+  - Clearer quick reference table
+  - Expanded rationale for clj-paren-repair approach
+  - Better installation and configuration instructions
+  - Updated GEMINI.md with project overview
+
+### Fixed
+- **cljfmt integration** - Fixed clj-paren-repair cljfmt integration issues
+
 ## [0.2.0] - 2025-11-17
 
 ### Summary
@@ -142,6 +171,7 @@ This release introduces edit validation metrics, enhanced nREPL connection disco
   - All tests passing
   - Better test coverage for new features
 
+[0.2.1]: https://github.com/bhauman/clojure-mcp-light/releases/tag/v0.2.1
 [0.2.0]: https://github.com/bhauman/clojure-mcp-light/releases/tag/v0.2.0
 [0.1.1]: https://github.com/bhauman/clojure-mcp-light/releases/tag/v0.1.1
 [0.1.0]: https://github.com/bhauman/clojure-mcp-light/releases/tag/v0.1.0

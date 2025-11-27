@@ -58,7 +58,7 @@ Installation is in two steps, installing the command line tool and
 then telling the coding assistants about `clj-nrepl-eval`.
 
 ```bash
-bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.0 --as clj-nrepl-eval --main-opts '["-m" "clojure-mcp-light.nrepl-eval"]'
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1 --as clj-nrepl-eval --main-opts '["-m" "clojure-mcp-light.nrepl-eval"]'
 ```
 
 Or from local checkout:
@@ -208,7 +208,7 @@ transparently fixing delimiter errors behind the scenes.
 ### Installation
 
 ```bash
-bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.0
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1
 ```
 
 Or from local checkout:
@@ -398,7 +398,7 @@ can also edit files via Bash (sed, awk, etc.). Having both tools catches all cas
 ### Installation
 
 ```bash
-bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.0 --as clj-paren-repair --main-opts '["-m" "clojure-mcp-light.paren-repair"]'
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1 --as clj-paren-repair --main-opts '["-m" "clojure-mcp-light.paren-repair"]'
 ```
 
 Or from local checkout:
