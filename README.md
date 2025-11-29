@@ -172,11 +172,11 @@ Allows the LLM to pull in REPL information when it's actually needed. Currently 
 ```bash
 # Global (all projects)
 mkdir -p ~/.claude/skills
-cp skills/clojure-eval.md ~/.claude/skills/
+cp -r skills/clojure-eval ~/.claude/skills/
 
 # Local (this project only)
 mkdir -p .claude/skills
-cp skills/clojure-eval.md .claude/skills/
+cp -r skills/clojure-eval .claude/skills/
 ```
 
 ### Usage Tips
