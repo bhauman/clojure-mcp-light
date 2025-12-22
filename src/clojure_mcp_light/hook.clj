@@ -381,6 +381,20 @@
             (when backup-exists?
               (delete-backup backup))))))))
 
+(defmethod process-hook ["PreToolUse" "mcp__morph-mcp__edit_file"]
+  [input]
+  (let [path (get-in input [:tool_input :path])]
+    (process-hook (-> input
+                      (assoc :tool_name "Edit")
+                      (assoc-in [:tool_input :file_path] path)))))
+
+(defmethod process-hook ["PostToolUse" "mcp__morph-mcp__edit_file"]
+  [input]
+  (let [path (get-in input [:tool_input :path])]
+    (process-hook (-> input
+                      (assoc :tool_name "Edit")
+                      (assoc-in [:tool_input :file_path] path)))))
+
 (defmethod process-hook ["SessionEnd" nil]
   [{:keys [session_id]}]
   (timbre/info "SessionEnd: cleaning up session" session_id)
