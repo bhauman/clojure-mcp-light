@@ -306,6 +306,7 @@
               (timbre/debug "  Fix successful, allowing write with updated content")
               {:hookSpecificOutput
                {:hookEventName "PreToolUse"
+                :permissionDecision "allow"
                 :updatedInput {:file_path file_path
                                :content fixed-content}}})
             (do
