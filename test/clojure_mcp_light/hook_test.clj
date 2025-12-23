@@ -8,6 +8,7 @@
     (is (hook/clojure-file? "test.clj"))
     (is (hook/clojure-file? "test.cljs"))
     (is (hook/clojure-file? "test.cljc"))
+    (is (hook/clojure-file? "test.cljd"))
     (is (hook/clojure-file? "test.bb"))
     (is (hook/clojure-file? "test.lpy"))
     (is (hook/clojure-file? "config.edn")))
@@ -15,6 +16,7 @@
   (testing "case-insensitive extension matching"
     (is (hook/clojure-file? "test.CLJ"))
     (is (hook/clojure-file? "test.CLJS"))
+    (is (hook/clojure-file? "test.CLJD"))
     (is (hook/clojure-file? "test.EDN"))
     (is (hook/clojure-file? "test.LPY")))
 
