@@ -1,5 +1,8 @@
 # clojure-mcp-light
 
+[![Run in Smithery](https://smithery.ai/badge/skills/bhauman)](https://smithery.ai/skills?ns=bhauman&utm_source=github&utm_medium=badge)
+
+
 > This is not an MCP.
 
 Simple CLI tools for LLM coding assistants working with Clojure.
