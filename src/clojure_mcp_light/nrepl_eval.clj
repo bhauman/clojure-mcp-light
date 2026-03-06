@@ -121,15 +121,19 @@
   [_]
   nil)
 
-(defn read-nrepl-port-file
-  "Read port number from .nrepl-port file in current directory.
-   Returns nil if file doesn't exist or on error."
+(defn read-nrepl-port-files
+  "Read port numbers from well-known .nrepl-port file locations.
+   Checks: ./.nrepl-port and ./.shadow-cljs/.nrepl-port
+   Returns vector of port numbers, empty vector if none found."
   []
-  (try
-    (when (fs/exists? ".nrepl-port")
-      (parse-long (str/trim (slurp ".nrepl-port" :encoding "UTF-8"))))
-    (catch Exception _
-      nil)))
+  (let [port-files [".nrepl-port" ".shadow-cljs/.nrepl-port"]]
+    (->> port-files
+         (keep (fn [f]
+                 (try
+                   (when (fs/exists? f)
+                     (parse-long (str/trim (slurp f :encoding "UTF-8"))))
+                   (catch Exception _ nil))))
+         vec)))
 
 (defn parse-lsof-ports
   "Parse port numbers from lsof output.
@@ -228,17 +232,18 @@
    - :matches-cwd - Boolean indicating if project-dir matches current working directory"
   []
   (let [;; Collect port candidates
-        port-file-port (read-nrepl-port-file)
+        port-file-ports (read-nrepl-port-files)
         lsof-ports (get-listening-jvm-ports)
         current-dir (System/getProperty "user.dir")
 
         ;; Combine and deduplicate
-        all-ports (distinct (concat (when port-file-port [port-file-port])
-                                    lsof-ports))
+        all-ports (distinct (concat port-file-ports lsof-ports))
+
+        port-file-set (set port-file-ports)
 
         ;; Validate each port and gather info in parallel using a single connection per port
         results (pmap (fn [port]
-                        (let [source (if (= port port-file-port) :nrepl-port-file :lsof)]
+                        (let [source (if (port-file-set port) :nrepl-port-file :lsof)]
                           (gather-port-info "localhost" port source current-dir)))
                       all-ports)]
     (vec results)))
