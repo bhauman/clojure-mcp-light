@@ -439,7 +439,6 @@
               stats/*stats-file-path* stats-path]
       (try
         (let [input-json (slurp *in*)
-              _ (timbre/debug "clojure-mcp-light local dev 2026-03-14")
               _ (timbre/debug "INPUT:" input-json)
               _ (when *enable-cljfmt*
                   (timbre/debug "cljfmt formatting is ENABLED"))
