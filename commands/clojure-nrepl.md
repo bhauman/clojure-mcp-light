@@ -25,9 +25,18 @@ The following evaluates Clojure code via an nREPL connection.
 clj-nrepl-eval --discover-ports
 ```
 
-**Evaluate code (requires --port):**
+**Evaluate code (requires --port) — prefer heredoc via stdin:**
 ```bash
-clj-nrepl-eval --port <port> "<clojure-code>"
+clj-nrepl-eval -p <PORT> <<'EOF'
+(swap! my-atom inc)
+EOF
+```
+
+The single-quoted heredoc delimiter (`<<'EOF'`) passes all characters literally, avoiding the Bash tool's known bug of escaping `!` to `\!` (which breaks `swap!`, `reset!`, etc.).
+
+**Simple expressions without `!` can use command-line arguments:**
+```bash
+clj-nrepl-eval --port <port> "(+ 1 2 3)"
 ```
 
 ## Options

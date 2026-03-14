@@ -58,27 +58,20 @@ IMPORTANT: IF you start a REPL do not supply a port let the nREPL start and retu
 
 Use the `-p` flag to specify the port and pass your Clojure code.
 
-**Recommended: Pass code as a command-line argument:**
+**Recommended: Use heredoc via stdin** to avoid shell escaping issues. The single-quoted delimiter (`<<'EOF'`) passes all characters through literally.
+
 ```bash
-clj-nrepl-eval -p <PORT> "(+ 1 2 3)"
+clj-nrepl-eval -p <PORT> <<'EOF'
+(+ 1 2 3)
+EOF
 ```
 
-**For multiple expressions (single line):**
-```bash
-clj-nrepl-eval -p <PORT> "(def x 10) (+ x 20)"
-```
-
-**Alternative: Using heredoc (may require permission approval for multiline commands):**
+**For multiple expressions:**
 ```bash
 clj-nrepl-eval -p <PORT> <<'EOF'
 (def x 10)
 (+ x 20)
 EOF
-```
-
-**Alternative: Via stdin pipe:**
-```bash
-echo "(+ 1 2 3)" | clj-nrepl-eval -p <PORT>
 ```
 
 ### 2. Display nREPL Sessions
@@ -117,7 +110,7 @@ clj-nrepl-eval -p <PORT> "(require 'my.namespace :reload)"
 clj-nrepl-eval -p <PORT> "(def x 10) (* x 2) (+ x 5)"
 ```
 
-**Complex multiline code (using heredoc):**
+**Complex multiline code:**
 ```bash
 clj-nrepl-eval -p <PORT> <<'EOF'
 (def x 10)
@@ -125,7 +118,6 @@ clj-nrepl-eval -p <PORT> <<'EOF'
 (+ x 5)
 EOF
 ```
-*Note: Heredoc syntax may require permission approval.*
 
 **With custom timeout (in milliseconds):**
 ```bash
@@ -150,8 +142,7 @@ clj-nrepl-eval -p <PORT> --reset-session "(def x 1)"
 
 ## Important Notes
 
-- **Prefer command-line arguments:** Pass code as quoted strings: `clj-nrepl-eval -p <PORT> "(+ 1 2 3)"` - works with existing permissions
-- **Heredoc for complex code:** Use heredoc (`<<'EOF' ... EOF`) for truly multiline code, but note it may require permission approval
+- **Prefer heredoc via stdin:** Use `clj-nrepl-eval -p <PORT> <<'EOF' ... EOF` to avoid shell escaping issues
 - **Sessions persist:** State (vars, namespaces, loaded libraries) persists across invocations until the nREPL server restarts or `--reset-session` is used
 - **Automatic delimiter repair:** The tool automatically repairs missing or mismatched parentheses
 - **Always use :reload:** When requiring namespaces, use `:reload` to pick up recent changes

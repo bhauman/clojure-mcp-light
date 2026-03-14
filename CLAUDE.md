@@ -63,4 +63,17 @@ External tools:
 - **bbin** - For installation
 
 Clojure deps (bb.edn): edamame, cheshire, tools.cli, nrepl/bencode, parinferish
-- let's add a short note about using here doc with the bb tool for eval
+
+## Heredoc for Bash Tool Evaluation
+
+Prefer heredocs with a single-quoted delimiter when evaluating code to avoid shell escaping issues:
+
+```bash
+clj-nrepl-eval -p <PORT> <<'EOF'
+(swap! my-atom inc)
+EOF
+
+bb <<'EOF'
+(println "hello!")
+EOF
+```
