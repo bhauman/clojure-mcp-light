@@ -29,18 +29,18 @@ These tools solve both problems.
 
 **Install hook tool:**
 ```bash
-bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.2
 ```
 **Note:** The hook will not work unless configured in `~/.claude/settings.json` - see configuration section below.
 
 **Install nREPL eval tool:**
 ```bash
-bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1 --as clj-nrepl-eval --main-opts '["-m" "clojure-mcp-light.nrepl-eval"]'
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.2 --as clj-nrepl-eval --main-opts '["-m" "clojure-mcp-light.nrepl-eval"]'
 ```
 
 **Install on-demand repair tool:**
 ```bash
-bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1 --as clj-paren-repair --main-opts '["-m" "clojure-mcp-light.paren-repair"]'
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.2 --as clj-paren-repair --main-opts '["-m" "clojure-mcp-light.paren-repair"]'
 ```
 
 See individual tool sections below for important configuration and usage details.
@@ -79,7 +79,7 @@ Installation is in two steps, installing the command line tool and
 then telling the coding assistants about `clj-nrepl-eval`.
 
 ```bash
-bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1 --as clj-nrepl-eval --main-opts '["-m" "clojure-mcp-light.nrepl-eval"]'
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.2 --as clj-nrepl-eval --main-opts '["-m" "clojure-mcp-light.nrepl-eval"]'
 ```
 
 Or from local checkout:
@@ -231,7 +231,7 @@ transparently fixing delimiter errors behind the scenes.
 ### Installation
 
 ```bash
-bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.2
 ```
 
 Or from local checkout:
@@ -421,7 +421,7 @@ can also edit files via Bash (sed, awk, etc.). Having both tools catches all cas
 ### Installation
 
 ```bash
-bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1 --as clj-paren-repair --main-opts '["-m" "clojure-mcp-light.paren-repair"]'
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.2 --as clj-paren-repair --main-opts '["-m" "clojure-mcp-light.paren-repair"]'
 ```
 
 Or from local checkout:

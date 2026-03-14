@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] - 2026-03-14
+
+This release fixes the PreToolUse Write hook so delimiter repairs are actually applied, adds ClojureDart (.cljd) file support, and updates documentation to recommend heredoc for code evaluation.
+
+### Added
+- **ClojureDart (.cljd) file extension support** - Hook now processes .cljd files (PR #14)
+- **morph-mcp edit_file hook support** - Hook intercepts mcp__morph-mcp__edit_file tool
+- **Stdin/stdout support for clj-paren-repair** - Pipe content directly for repair
+
+### Fixed
+- **PreToolUse Write hook now works** - Added `permissionDecision: "allow"` to hook response so Claude Code applies delimiter fixes on Write operations (PR #13, fixes #9)
+- **Correct --reset-session docs** - Clarified that --reset-session only clears nREPL session vars (*e, *1), not def'd vars or namespaces (fixes #17)
+
+### Changed
+- **Prefer heredoc for code evaluation** - Docs now recommend heredoc (`<<'EOF'`) over quoted strings to avoid shell escaping issues
+- **Documentation updates** - Quick install section, navigation links, Babashka version requirement
+
 ## [0.2.1] - 2025-11-27
 
 This release adds a new standalone `clj-paren-repair` tool for LLM clients without hook support (Gemini CLI, Codex CLI), significantly improves nREPL port discovery performance, and includes comprehensive documentation updates that reorganize the README around the three CLI tools.
@@ -171,6 +188,7 @@ This release introduces edit validation metrics, enhanced nREPL connection disco
   - All tests passing
   - Better test coverage for new features
 
+[0.2.2]: https://github.com/bhauman/clojure-mcp-light/releases/tag/v0.2.2
 [0.2.1]: https://github.com/bhauman/clojure-mcp-light/releases/tag/v0.2.1
 [0.2.0]: https://github.com/bhauman/clojure-mcp-light/releases/tag/v0.2.0
 [0.1.1]: https://github.com/bhauman/clojure-mcp-light/releases/tag/v0.1.1
