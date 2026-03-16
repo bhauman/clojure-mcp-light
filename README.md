@@ -56,6 +56,53 @@ See individual tool sections below for important configuration and usage details
 
 ---
 
+## Installation for Claude Code
+
+Claude Code users have two installation options. Both require the CLI tools installed first.
+
+### Step 1: Install CLI Tools
+
+```bash
+# Hook tool (auto-fixes delimiters)
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1
+
+# nREPL eval tool
+bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.1 --as clj-nrepl-eval --main-opts '["-m" "clojure-mcp-light.nrepl-eval"]'
+```
+
+### Step 2: Choose Plugin or Manual Configuration
+
+#### Option A: Plugin (Recommended)
+
+The plugin provides pre-configured hooks, slash commands, and skills with no manual configuration.
+
+```bash
+# In Claude Code
+/plugin marketplace add bhauman/clojure-mcp-light
+/plugin install clojure-tools@clojure-tools-marketplace
+```
+
+**What the plugin provides:**
+
+| Component | Description |
+|-----------|-------------|
+| Hooks | Auto-fix delimiter errors on Write/Edit (with `--cljfmt`) |
+| `/clojure-tools:clojure-nrepl` | nREPL usage info |
+| `/clojure-tools:start-nrepl` | Start nREPL server |
+| `clojure-eval` skill | Automatic REPL awareness |
+
+**Note:** Plugin commands are namespaced with the plugin name (e.g., `/clojure-tools:start-nrepl` instead of `/start-nrepl`).
+
+#### Option B: Manual Configuration
+
+For full control over hook behavior and flags, configure `~/.claude/settings.json` directly. See [Manual Hook Configuration](#configuration) below.
+
+You can also manually install commands and skills:
+- Copy `commands/*.md` to `~/.claude/commands/`
+- Copy `skills/clojure-eval/` to `~/.claude/skills/`
+
+---
+
 ## `clj-nrepl-eval` LLM nREPL connection without an MCP
 
 nREPL client for evaluating Clojure code from the command line. 
@@ -106,6 +153,8 @@ Choose one or more of these approaches. Each has trade-offs:
 | Skills | Claude Code only | LLM pulls when needed | Automatic, context-aware |
 
 Each can be installed **locally** (per-project) or **globally** (all projects).
+
+> **Plugin users:** If you installed the clojure-tools plugin, the slash commands (`/clojure-tools:clojure-nrepl`, `/clojure-tools:start-nrepl`) and skill (`clojure-eval`) are already available. The sections below describe manual installation for users who prefer granular control or use other LLM clients.
 
 #### Custom instructions
 
@@ -241,7 +290,9 @@ bbin install .
 
 ### Configuration
 
-Add to `~/.claude/settings.json`:
+> **Plugin users:** If you installed the clojure-tools plugin, hooks are already configured with `--cljfmt` enabled. Skip to [Verify Installation](#verify-installation) below.
+
+For manual configuration, add to `~/.claude/settings.json`:
 
 ```json
 {

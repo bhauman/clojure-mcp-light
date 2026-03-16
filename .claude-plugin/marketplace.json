@@ -1,0 +1,13 @@
+{
+  "name": "clojure-tools-marketplace",
+  "owner": {
+    "name": "Bruce Hauman"
+  },
+  "plugins": [
+    {
+      "name": "clojure-tools",
+      "source": "./",
+      "description": "Clojure development tools: auto-fix delimiter errors, nREPL evaluation"
+    }
+  ]
+}
