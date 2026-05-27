@@ -1,6 +1,6 @@
-(ns clojure-mcp-light.hook-test
+(ns clojure-mcp-light.claude-hook-test
   (:require [clojure.test :refer [deftest is testing]]
-            [clojure-mcp-light.hook :as hook]
+            [clojure-mcp-light.claude-hook :as hook]
             [babashka.fs :as fs]))
 
 (deftest clojure-file?-test

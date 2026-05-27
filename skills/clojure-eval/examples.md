@@ -48,7 +48,7 @@ EOF
 
 ```bash
 # If this returns nil, the file compiled successfully
-clj-nrepl-eval -p 7888 "(require 'clojure-mcp-light.hook :reload)"
+clj-nrepl-eval -p 7888 "(require 'clojure-mcp-light.claude-hook :reload)"
 ```
 
 ## Session Management

@@ -7,7 +7,7 @@
             [cljfmt.core :as cljfmt]
             [clojure.string :as string]
             [clojure-mcp-light.delimiter-repair :refer [fix-delimiters]]
-            [clojure-mcp-light.hook :as hook :refer [clojure-file? fix-and-format-file!]]
+            [clojure-mcp-light.claude-hook :as hook :refer [clojure-file? fix-and-format-file!]]
             [taoensso.timbre :as timbre]))
 
 ;; ============================================================================
@@ -90,7 +90,7 @@
      :formatted false}
 
     :else
-    ;; Use shared fix-and-format-file! from hook.clj
+    ;; Use shared fix-and-format-file! from claude_hook.clj
     (assoc (fix-and-format-file! file-path true "paren-repair")
            :file-path file-path)))
 

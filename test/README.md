@@ -12,7 +12,7 @@ bb test
 ## Test Structure
 
 - `delimiter_repair_test.clj` - Tests for delimiter detection and repair functionality
-- `hook_test.clj` - Tests for Claude Code hook processing
+- `claude_hook_test.clj` - Tests for Claude Code hook processing
 - `nrepl_eval_test.clj` - Tests for nREPL evaluation utilities
 
 ## Test Coverage
@@ -22,7 +22,7 @@ bb test
 - ✅ Delimiter repair with parinfer
 - ✅ Edge cases (empty strings, multiple forms)
 
-### hook namespace
+### claude-hook namespace
 - ✅ Clojure file detection
 - ✅ Backup path generation
 - ✅ Hook processing for Write operations

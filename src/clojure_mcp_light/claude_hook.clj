@@ -1,7 +1,7 @@
 (babashka.deps/add-deps '{:deps {dev.weavejester/cljfmt {:mvn/version "0.15.5"}
                                  parinferish/parinferish {:mvn/version "0.8.0"}}})
 
-(ns clojure-mcp-light.hook
+(ns clojure-mcp-light.claude-hook
   "Claude Code hook for delimiter error detection and repair"
   (:require [babashka.fs :as fs]
             [cheshire.core :as json]

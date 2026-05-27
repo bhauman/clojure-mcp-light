@@ -22,11 +22,11 @@ bbin install .
 bbin install . --as clj-nrepl-eval --main-opts '["-m" "clojure-mcp-light.nrepl-eval"]'
 
 # Test hook manually
-echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | bb -m clojure-mcp-light.hook
-echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | bb -m clojure-mcp-light.hook -- --cljfmt --stats
+echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | bb -m clojure-mcp-light.claude-hook
+echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | bb -m clojure-mcp-light.claude-hook -- --cljfmt --stats
 
 # Show help
-bb -m clojure-mcp-light.hook -- --help
+bb -m clojure-mcp-light.claude-hook -- --help
 
 # Quick eval/testing with bb and heredoc
 bb <<'EOF'
@@ -39,7 +39,7 @@ EOF
 
 **delimiter_repair.clj** - Detects and repairs delimiter errors using edamame parser. Uses parinfer-rust when available, falls back to parinferish (pure Clojure)
 
-**hook.clj** - Intercepts Write/Edit operations to auto-fix delimiter errors. For Write: fixes before writing. For Edit: creates backup, fixes after edit, restores if unfixable. Optional `--cljfmt` flag for formatting. Supports `--stats` for tracking delimiter events.
+**claude_hook.clj** - Intercepts Write/Edit operations to auto-fix delimiter errors. For Write: fixes before writing. For Edit: creates backup, fixes after edit, restores if unfixable. Optional `--cljfmt` flag for formatting. Supports `--stats` for tracking delimiter events.
 
 **nrepl_eval.clj** - nREPL client with timeout handling, persistent sessions, and delimiter repair. Use `--connected-ports` to discover connections, `--port` to specify target.
 
