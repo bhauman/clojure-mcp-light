@@ -69,26 +69,28 @@
        (string/join \newline errors)))
 
 (defn handle-cli-args
-  "Parse CLI arguments and handle help/errors. Returns options map or exits."
-  [args]
-  (let [actual-args (if (seq args) args *command-line-args*)
-        {:keys [options errors]} (parse-opts actual-args cli-options)]
-    (cond
-      (:help options)
-      (do
-        (println (usage))
-        (System/exit 0))
+  "Parse CLI arguments and handle help/errors. Returns options map or exits.
+  Accepts an optional `usage-fn` so other entrypoints can supply their own help text."
+  ([args] (handle-cli-args args usage))
+  ([args usage-fn]
+   (let [actual-args (if (seq args) args *command-line-args*)
+         {:keys [options errors]} (parse-opts actual-args cli-options)]
+     (cond
+       (:help options)
+       (do
+         (println (usage-fn))
+         (System/exit 0))
 
-      errors
-      (do
-        (binding [*out* *err*]
-          (println (error-msg errors))
-          (println)
-          (println (usage)))
-        (System/exit 1))
+       errors
+       (do
+         (binding [*out* *err*]
+           (println (error-msg errors))
+           (println)
+           (println (usage-fn)))
+         (System/exit 1))
 
-      :else
-      options)))
+       :else
+       options))))
 
 ;; ============================================================================
 ;; Claude Code Hook Functions
@@ -415,14 +417,10 @@
       (timbre/error "  Unexpected error during cleanup:" (.getMessage e))
       nil)))
 
-(defn -main [& args]
-  (let [options (handle-cli-args args)
-        log-level (:log-level options)
-        log-file (:log-file options)
-        enable-logging? (some? log-level)
-        enable-stats? (:stats options)
-        stats-path (stats/normalize-stats-path (:stats-file options))]
-
+(defn configure-logging!
+  "Configure timbre's file appender from parsed CLI options."
+  [{:keys [log-level log-file]}]
+  (let [enable-logging? (some? log-level)]
     (timbre/set-config!
      {:appenders {:spit (assoc
                          (timbre/spit-appender {:fname log-file})
@@ -430,30 +428,38 @@
                          :min-level (or log-level :report)
                          :ns-filter (if enable-logging?
                                       {:allow "clojure-mcp-light.*"}
-                                      {:deny "*"}))}})
+                                      {:deny "*"}))}})))
 
-    ;; Set cljfmt, revert, and stats flags from CLI options
+(defn run-hook!
+  "Read JSON hook input from *in*, dispatch through `process-fn`,
+  print the response (if any), and exit. Shared by hook entrypoints."
+  [process-fn]
+  (try
+    (let [input-json (slurp *in*)
+          _ (timbre/debug "INPUT:" input-json)
+          _ (when *enable-cljfmt*
+              (timbre/debug "cljfmt formatting is ENABLED"))
+          _ (when stats/*enable-stats*
+              (timbre/debug "stats tracking is ENABLED, writing to:" stats/*stats-file-path*))
+          hook-input (json/parse-string input-json true)
+          response (process-fn hook-input)
+          _ (timbre/debug "OUTPUT:" (json/generate-string response))]
+      (when response
+        (println (json/generate-string response)))
+      (System/exit 0))
+    (catch Exception e
+      (timbre/error "Hook error:" (.getMessage e))
+      (timbre/error "Stack trace:" (with-out-str (.printStackTrace e)))
+      (binding [*out* *err*]
+        (println "Hook error:" (.getMessage e))
+        (println "Stack trace:" (with-out-str (.printStackTrace e))))
+      (System/exit 2))))
+
+(defn -main [& args]
+  (let [options (handle-cli-args args)]
+    (configure-logging! options)
     (binding [*enable-cljfmt* (:cljfmt options)
               *enable-revert* (not (:no-revert options))
-              stats/*enable-stats* enable-stats?
-              stats/*stats-file-path* stats-path]
-      (try
-        (let [input-json (slurp *in*)
-              _ (timbre/debug "INPUT:" input-json)
-              _ (when *enable-cljfmt*
-                  (timbre/debug "cljfmt formatting is ENABLED"))
-              _ (when stats/*enable-stats*
-                  (timbre/debug "stats tracking is ENABLED, writing to:" stats/*stats-file-path*))
-              hook-input (json/parse-string input-json true)
-              response (process-hook hook-input)
-              _ (timbre/debug "OUTPUT:" (json/generate-string response))]
-          (when response
-            (println (json/generate-string response)))
-          (System/exit 0))
-        (catch Exception e
-          (timbre/error "Hook error:" (.getMessage e))
-          (timbre/error "Stack trace:" (with-out-str (.printStackTrace e)))
-          (binding [*out* *err*]
-            (println "Hook error:" (.getMessage e))
-            (println "Stack trace:" (with-out-str (.printStackTrace e))))
-          (System/exit 2))))))
+              stats/*enable-stats* (:stats options)
+              stats/*stats-file-path* (stats/normalize-stats-path (:stats-file options))]
+      (run-hook! process-hook))))

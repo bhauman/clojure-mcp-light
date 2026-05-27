@@ -1,12 +1,14 @@
 # Project Overview
 
-This is a Clojure project that provides command-line tools to improve the Clojure development experience with an AI coding assistant called "Claude Code". The main features are automatic delimiter fixing and an nREPL evaluation tool.
+This is a Clojure project that provides command-line tools to improve the Clojure development experience with LLM coding assistants. The main features are automatic delimiter fixing and an nREPL evaluation tool.
 
 The project is built using Babashka, a Clojure scripting environment, and it has dependencies on `edamame` for parsing Clojure code, `cheshire` for JSON handling, `tools.cli` for command-line argument parsing, and `nrepl/bencode` for nREPL communication.
 
-The project provides two command-line tools:
+The project provides four command-line tools:
 
 *   `clj-paren-repair-claude-hook`: A hook for "Claude Code" that automatically fixes delimiter errors in Clojure files.
+*   `clj-paren-repair-codex-hook`: A hook for Codex that automatically fixes delimiter errors in Clojure files touched by `apply_patch`.
+*   `clj-paren-repair`: An on-demand delimiter repair tool for files or stdin.
 *   `clj-nrepl-eval`: A command-line nREPL client that can be used to evaluate Clojure code.
 
 # Building and Running
@@ -19,11 +21,11 @@ To run the tests, use the following command:
 bb test
 ```
 
-The `bb.edn` file also defines two binaries, `clj-paren-repair-claude-hook` and `clj-nrepl-eval`. These can be installed using `bbin`, the Babashka package manager.
+The `bb.edn` file also defines binaries for these tools. They can be installed using `bbin`, the Babashka package manager.
 
 # Development Conventions
 
-The project uses `cljfmt` for code formatting. The `clj-paren-repair-claude-hook` tool has an option to automatically format the code with `cljfmt` after fixing delimiter errors.
+The project uses `cljfmt` for code formatting. The hook tools have an option to automatically format code with `cljfmt` after fixing delimiter errors.
 
 # Parenthesis Repair
 

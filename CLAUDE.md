@@ -4,8 +4,9 @@ Instructions for Claude Code when working with this repository.
 
 ## Project Overview
 
-clojure-mcp-light provides CLI tooling for Clojure development in Claude Code:
+clojure-mcp-light provides CLI tooling for Clojure development in LLM coding assistants:
 - **clj-paren-repair-claude-hook** - Auto-fixes delimiter errors in Clojure files via hooks
+- **clj-paren-repair-codex-hook** - Auto-fixes delimiter errors in Clojure files touched by Codex `apply_patch`
 - **clj-nrepl-eval** - nREPL evaluation with automatic delimiter repair
 
 ## Essential Commands
@@ -24,9 +25,11 @@ bbin install . --as clj-nrepl-eval --main-opts '["-m" "clojure-mcp-light.nrepl-e
 # Test hook manually
 echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | bb -m clojure-mcp-light.claude-hook
 echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"test.clj","content":"(def x 1)"}}' | bb -m clojure-mcp-light.claude-hook -- --cljfmt --stats
+printf '%s\n' '{"session_id":"test","cwd":"'"$PWD"'","hook_event_name":"PostToolUse","tool_name":"apply_patch","tool_input":{"command":"*** Begin Patch\n*** Update File: test.clj\n*** End Patch\n"},"tool_response":{}}' | bb -m clojure-mcp-light.codex-hook
 
 # Show help
 bb -m clojure-mcp-light.claude-hook -- --help
+bb -m clojure-mcp-light.codex-hook -- --help
 
 # Quick eval/testing with bb and heredoc
 bb <<'EOF'
@@ -40,6 +43,8 @@ EOF
 **delimiter_repair.clj** - Detects and repairs delimiter errors using edamame parser. Uses parinfer-rust when available, falls back to parinferish (pure Clojure)
 
 **claude_hook.clj** - Intercepts Write/Edit operations to auto-fix delimiter errors. For Write: fixes before writing. For Edit: creates backup, fixes after edit, restores if unfixable. Optional `--cljfmt` flag for formatting. Supports `--stats` for tracking delimiter events.
+
+**codex_hook.clj** - Intercepts Codex `apply_patch` hooks. PreToolUse creates backups for affected Clojure files when revert is enabled. PostToolUse repairs and formats affected Clojure files, restoring from backup if repair fails.
 
 **nrepl_eval.clj** - nREPL client with timeout handling, persistent sessions, and delimiter repair. Use `--connected-ports` to discover connections, `--port` to specify target.
 

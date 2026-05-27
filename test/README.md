@@ -13,6 +13,7 @@ bb test
 
 - `delimiter_repair_test.clj` - Tests for delimiter detection and repair functionality
 - `claude_hook_test.clj` - Tests for Claude Code hook processing
+- `codex_hook_test.clj` - Tests for Codex apply_patch hook processing
 - `nrepl_eval_test.clj` - Tests for nREPL evaluation utilities
 
 ## Test Coverage
@@ -28,6 +29,11 @@ bb test
 - ✅ Hook processing for Write operations
 - ✅ Hook processing for Edit operations
 - ✅ Auto-fixing delimiter errors
+
+### codex-hook namespace
+- ✅ apply_patch file path extraction
+- ✅ PreToolUse backup creation
+- ✅ PostToolUse delimiter repair
 
 ### nrepl-eval namespace
 - ✅ Byte to string conversion

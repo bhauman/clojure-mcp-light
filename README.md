@@ -4,10 +4,11 @@
 
 Simple CLI tools for LLM coding assistants working with Clojure.
 
-**TL;DR:** Three CLI tools for Clojure development with LLM coding assistants:
+**TL;DR:** Four CLI tools for Clojure development with LLM coding assistants:
 - [`clj-nrepl-eval`](#clj-nrepl-eval-llm-nrepl-connection-without-an-mcp) - nREPL evaluation from command line
 - [`clj-paren-repair-claude-hook`](#clj-paren-repair-claude-hook) - Auto-fix delimiters via hooks (Claude Code)
-- [`clj-paren-repair`](#clj-paren-repair) - On-demand delimiter fix (Gemini CLI, Codex, etc.)
+- [`clj-paren-repair-codex-hook`](#clj-paren-repair-codex-hook) - Auto-fix delimiters via hooks (Codex)
+- [`clj-paren-repair`](#clj-paren-repair) - On-demand delimiter fix (Gemini CLI, Bash edits, etc.)
 
 ## The Problem
 
@@ -23,15 +24,16 @@ These tools solve both problems.
 |------|----------|
 | [`clj-nrepl-eval`](#clj-nrepl-eval-llm-nrepl-connection-without-an-mcp) | REPL evaluation from any LLM |
 | [`clj-paren-repair-claude-hook`](#clj-paren-repair-claude-hook) | Claude Code (or any LLM that supports Claude hooks) |
-| [`clj-paren-repair`](#clj-paren-repair) | Gemini CLI, Codex CLI, any LLM with shell |
+| [`clj-paren-repair-codex-hook`](#clj-paren-repair-codex-hook) | Codex CLI hooks for `apply_patch` edits |
+| [`clj-paren-repair`](#clj-paren-repair) | Gemini CLI, Bash-based edits, any LLM with shell |
 
 ## Quick Install
 
-**Install hook tool:**
+**Install hook tools:**
 ```bash
-bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.2
+bbin install https://github.com/bhauman/clojure-mcp-light.git
 ```
-**Note:** The hook will not work unless configured in `~/.claude/settings.json` - see configuration section below.
+**Note:** Hooks will not work unless configured in your assistant's hook settings, such as `~/.claude/settings.json` or `~/.codex/hooks.json` - see configuration sections below.
 
 **Install nREPL eval tool:**
 ```bash
@@ -231,7 +233,7 @@ transparently fixing delimiter errors behind the scenes.
 ### Installation
 
 ```bash
-bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.2
+bbin install https://github.com/bhauman/clojure-mcp-light.git
 ```
 
 Or from local checkout:
@@ -388,10 +390,121 @@ Combine with `clj-paren-repair` for complete coverage - hooks handle Edit/Write 
 
 ---
 
+## clj-paren-repair-codex-hook
+
+Codex hooks use a different wire format from Claude Code hooks. This
+tool supports Codex's `apply_patch` flow by backing up affected
+Clojure files before the patch runs when revert is enabled, then
+repairing and optionally formatting those files after the patch has
+been applied.
+
+### How it helps
+
+- Fixes delimiter errors introduced by Codex `apply_patch` edits
+- Keeps Codex's native patch workflow
+- Restores from backup when an edited file cannot be repaired and revert is enabled
+- Uses the same repair, cljfmt, logging, and stats options as the Claude hook
+
+### Installation
+
+```bash
+bbin install https://github.com/bhauman/clojure-mcp-light.git
+```
+
+Or from local checkout:
+```bash
+bbin install .
+```
+
+### Configuration
+
+Add to `~/.codex/hooks.json` or `<repo>/.codex/hooks.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^apply_patch$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "clj-paren-repair-codex-hook --cljfmt",
+            "statusMessage": "Backing up Clojure files"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^apply_patch$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "clj-paren-repair-codex-hook --cljfmt",
+            "statusMessage": "Repairing Clojure delimiters"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+After adding or changing a Codex command hook, run `/hooks` in Codex
+and trust the hook definition before it will run.
+
+### Options
+
+- `--cljfmt` - Enable automatic code formatting with cljfmt
+- `--no-revert` - Disable restore from backup when repair fails
+- `--stats` - Enable statistics tracking (logs to `~/.clojure-mcp-light/stats.log`)
+- `--log-level LEVEL` - Set log level (trace, debug, info, warn, error)
+- `--log-file PATH` - Path to log file (default: `./.clojure-mcp-light-hooks.log`)
+- `-h, --help` - Show help message
+
+### Verify Installation
+
+```bash
+printf '%s\n' '{"session_id":"test","cwd":"'"$PWD"'","hook_event_name":"PostToolUse","tool_name":"apply_patch","tool_input":{"command":"*** Begin Patch\n*** Update File: test.clj\n*** End Patch\n"},"tool_response":{}}' | clj-paren-repair-codex-hook
+```
+
+### Tell Codex about `clj-paren-repair`
+
+The hook covers `apply_patch`, but Codex can also edit files through
+the shell (`sed -i`, heredoc redirects, etc.). Those edits bypass
+`apply_patch`, so the hook does not run. Add the snippet below to
+`~/.codex/AGENTS.md` (or `<repo>/AGENTS.md` for project scope) so Codex
+knows to call `clj-paren-repair` on Clojure files it edits outside of
+`apply_patch`:
+
+```markdown
+## Clojure delimiter repair
+
+`clj-paren-repair` is available on PATH. When you edit a Clojure file
+(`.clj`, `.cljs`, `.cljc`, `.cljd`, `.bb`, `.edn`, `.lpy`) without using
+`apply_patch` — e.g. via `sed -i`, heredoc redirects, or any shell
+rewrite — run it on the file before considering the task done:
+
+    clj-paren-repair <path>
+
+It fixes unbalanced delimiters in place. Edits applied via `apply_patch`
+are repaired automatically by the project's PostToolUse hook, so you do
+not need to run the tool in that case.
+```
+
+### Pro tip
+
+Codex hooks cover `apply_patch` edits. Keep `clj-paren-repair`
+available as well for Bash-based edits or other file changes that do
+not go through `apply_patch`.
+
+---
+
 ## clj-paren-repair
 
 A shell command for LLM coding assistants that don't support hooks
-(like Gemini CLI and Codex CLI). When the LLM encounters a delimiter
+(like Gemini CLI), or edits that don't go through hooks. When the LLM encounters a delimiter
 error, it calls this tool to fix it instead of trying to repair it manually.
 
 **The key insight:** When we observe an AI in the "Paren Edit Death Loop"—repeatedly
@@ -404,11 +517,12 @@ can reliably fix them. This simple solution works surprisingly well.
 
 **Hooks vs clj-paren-repair:** Hooks are the clear winner when available—they
 use zero tokens and happen without LLM invocation. However, `clj-paren-repair`
-works universally with any LLM that has shell access. When Gemini CLI gets
-hooks support, we should use them. Until then, `clj-paren-repair` is sufficient.
+works universally with any LLM that has shell access. Codex users should prefer
+`clj-paren-repair-codex-hook` for `apply_patch` edits and keep
+`clj-paren-repair` available for Bash-based edits.
 
 **Using both together:** Even with hooks configured, having `clj-paren-repair`
-available provides complete coverage. Hooks handle Edit/Write tools, but LLMs
+available provides complete coverage. Hooks handle native edit tools, but LLMs
 can also edit files via Bash (sed, awk, etc.). Having both tools catches all cases.
 
 ### How it helps

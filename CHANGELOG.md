@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **Codex hook support** - New `clj-paren-repair-codex-hook` command for Codex `apply_patch` hooks
+  - Backs up affected Clojure files during `PreToolUse`
+  - Repairs and optionally formats affected files during `PostToolUse`
+  - Includes README configuration for `.codex/hooks.json`
+
+### Changed
+- **Claude hook namespace renamed** - `clojure-mcp-light.hook` is now `clojure-mcp-light.claude-hook`
+
 ## [0.2.2] - 2026-03-14
 
 This release fixes the PreToolUse Write hook so delimiter repairs are actually applied, adds ClojureDart (.cljd) file support, and updates documentation to recommend heredoc for code evaluation.
