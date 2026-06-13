@@ -10,6 +10,7 @@
             [clojure.string :as string]
             [clojure.java.io :as io]
             [clojure.tools.cli :refer [parse-opts]]
+            [clojure-mcp-light.apply-patch :as apply-patch]
             [clojure-mcp-light.delimiter-repair
              :refer [delimiter-error? fix-delimiters actual-delimiter-error?]]
             [clojure-mcp-light.stats :as stats]
@@ -285,6 +286,80 @@
         (finally
           (delete-backup backup-file))))))
 
+;; ============================================================================
+;; Codex apply_patch Support
+;; ============================================================================
+;;
+;; Codex hooks use the same wire format as Claude Code hooks, but Codex edits
+;; files through a single apply_patch tool. One patch can touch several files
+;; (update/add/delete/move), so backup, repair, and revert operate per-op.
+
+(defn- backup-patch-sources!
+  "Back up existing Clojure files that an apply_patch is about to modify."
+  [ops session-id]
+  (doseq [op ops
+          :let [path (apply-patch/op-source op)]
+          :when (and path (fs/exists? path) (clojure-file? path))]
+    (try
+      (let [backup (backup-file path session-id)]
+        (timbre/debug "  Created backup:" backup))
+      (catch Exception e
+        (timbre/debug "  Backup failed for" path ":" (.getMessage e))))))
+
+(defn- delete-patch-backups!
+  [ops session-id]
+  (doseq [op ops
+          :let [path (apply-patch/op-source op)]
+          :when path]
+    (delete-backup (tmp/backup-path {:session-id session-id} path))))
+
+(defn- revert-patch-op!
+  "Undo a failed apply_patch op from its backup. Returns one of:
+   :restored  - file content restored to its pre-patch state
+   :deleted   - newly added file removed
+   :no-backup - wanted to restore but no usable backup exists
+   :skipped   - revert disabled, or op has nothing to undo"
+  [op session-id]
+  (if-not *enable-revert*
+    :skipped
+    (case (:op op)
+      :update
+      (let [backup (tmp/backup-path {:session-id session-id} (:path op))]
+        (if (fs/exists? backup)
+          (do (restore-file (:path op) backup) :restored)
+          :no-backup))
+
+      :move
+      (let [backup (tmp/backup-path {:session-id session-id} (:from op))]
+        (if (fs/exists? backup)
+          (do (restore-file (:from op) backup)
+              (fs/delete-if-exists (:to op))
+              :restored)
+          :no-backup))
+
+      :add
+      (do (fs/delete-if-exists (:path op))
+          :deleted)
+
+      :delete :skipped)))
+
+(defn- patch-failure-reason
+  [failures outcomes]
+  (let [by-outcome (group-by :outcome outcomes)
+        paths-of (fn [k] (map :file-path (by-outcome k)))
+        restored (paths-of :restored)
+        deleted (paths-of :deleted)
+        kept (concat (paths-of :no-backup) (paths-of :skipped))]
+    (str "Delimiter errors could not be auto-fixed in "
+         (string/join ", " (map :file-path failures))
+         (when (seq restored)
+           (str ". Restored from backup: " (string/join ", " restored)))
+         (when (seq deleted)
+           (str ". Removed newly added files: " (string/join ", " deleted)))
+         (when (seq kept)
+           (str ". Left in place (no backup or revert disabled): "
+                (string/join ", " kept))))))
+
 (defmulti process-hook
   (fn [hook-input]
     [(:hook_event_name hook-input) (:tool_name hook-input)]))
@@ -397,6 +472,42 @@
     (process-hook (-> input
                       (assoc :tool_name "Edit")
                       (assoc-in [:tool_input :file_path] path)))))
+
+(defmethod process-hook ["PreToolUse" "apply_patch"]
+  [{:keys [session_id] :as input}]
+  (when *enable-revert*
+    (backup-patch-sources! (apply-patch/ops input) session_id))
+  nil)
+
+(defmethod process-hook ["PostToolUse" "apply_patch"]
+  [{:keys [session_id tool_response] :as input}]
+  (let [ops (apply-patch/ops input)
+        exit-code (:exit_code tool_response)
+        patch-applied? (or (nil? exit-code) (zero? exit-code))]
+    (try
+      (when patch-applied?
+        (let [results (vec (for [op ops
+                                 :let [target (apply-patch/op-target op)]
+                                 :when (and target
+                                            (fs/exists? target)
+                                            (clojure-file? target))]
+                             (assoc (fix-and-format-file! target *enable-cljfmt* "PostToolUse:apply_patch")
+                                    :op op
+                                    :file-path target)))
+              failures (remove :success results)]
+          (timbre/debug "PostApplyPatch: processed" (count results) "Clojure file(s)")
+          (when (seq failures)
+            (let [outcomes (mapv (fn [{:keys [op file-path]}]
+                                   {:file-path file-path
+                                    :outcome (revert-patch-op! op session_id)})
+                                 failures)]
+              {:decision "block"
+               :reason (patch-failure-reason failures outcomes)
+               :hookSpecificOutput
+               {:hookEventName "PostToolUse"
+                :additionalContext "There are delimiter errors in one or more Clojure files touched by apply_patch."}}))))
+      (finally
+        (delete-patch-backups! ops session_id)))))
 
 (defmethod process-hook ["SessionEnd" nil]
   [{:keys [session_id]}]
