@@ -360,6 +360,19 @@
            (str ". Left in place (no backup or revert disabled): "
                 (string/join ", " kept))))))
 
+(defn- patch-applied?
+  "Did the apply_patch tool actually modify files? Codex reports the result in
+  tool_response as a STRING, e.g.
+  \"Exit code: 0\\nWall time: 0.1 seconds\\nOutput:\\nSuccess. Updated ...\".
+  Treat the patch as applied unless we can see an explicit non-zero exit code.
+  Also accepts a map with :exit_code for robustness."
+  [tool-response]
+  (cond
+    (map? tool-response)    (let [ec (:exit_code tool-response)]
+                              (or (nil? ec) (zero? ec)))
+    (string? tool-response) (not (re-find #"(?im)^\s*exit code:\s*[1-9]" tool-response))
+    :else                   true))
+
 (defmulti process-hook
   (fn [hook-input]
     [(:hook_event_name hook-input) (:tool_name hook-input)]))
@@ -481,11 +494,9 @@
 
 (defmethod process-hook ["PostToolUse" "apply_patch"]
   [{:keys [session_id tool_response] :as input}]
-  (let [ops (apply-patch/ops input)
-        exit-code (:exit_code tool_response)
-        patch-applied? (or (nil? exit-code) (zero? exit-code))]
+  (let [ops (apply-patch/ops input)]
     (try
-      (when patch-applied?
+      (when (patch-applied? tool_response)
         (let [results (vec (for [op ops
                                  :let [target (apply-patch/op-target op)]
                                  :when (and target

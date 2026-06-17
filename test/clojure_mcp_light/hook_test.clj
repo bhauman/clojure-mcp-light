@@ -163,6 +163,15 @@
 
           (is (not (fs/exists? backup-path))))))))
 
+;; Codex reports the apply_patch result as a plain string in :tool_response
+;; (verified against a live Codex 0.137.0 run), not a map. These cover both the
+;; success and explicit-failure string shapes.
+(def ^:private apply-patch-success-response
+  "Exit code: 0\nWall time: 0.1 seconds\nOutput:\nSuccess. Updated the following files:\nM src/core.clj\n")
+
+(def ^:private apply-patch-failure-response
+  "Exit code: 1\nWall time: 0.1 seconds\nOutput:\nFailed to apply patch.\n")
+
 (deftest post-apply-patch-test
   (testing "repairs Clojure files after apply_patch runs"
     (with-temp-project*
@@ -178,12 +187,12 @@
                         :hook_event_name "PostToolUse"
                         :tool_name "apply_patch"
                         :tool_input {:command (apply-patch-command "src/core.clj")}
-                        :tool_response {:exit_code 0}}))))
+                        :tool_response apply-patch-success-response}))))
 
           (is (= "(def x 1)" (slurp file-path :encoding "UTF-8"))))))))
 
 (deftest post-apply-patch-skips-failed-patch-test
-  (testing "non-zero apply_patch exit_code skips repair"
+  (testing "a non-zero exit code in the tool_response string skips repair"
     (with-temp-project*
       (fn [dir]
         (let [file-path (str (fs/path dir "src/core.clj"))]
@@ -197,7 +206,7 @@
                         :hook_event_name "PostToolUse"
                         :tool_name "apply_patch"
                         :tool_input {:command (apply-patch-command "src/core.clj")}
-                        :tool_response {:exit_code 1}}))))
+                        :tool_response apply-patch-failure-response}))))
 
           ;; File content untouched because patch did not run.
           (is (= "(def x 1" (slurp file-path :encoding "UTF-8"))))))))
