@@ -211,7 +211,7 @@ errors before they hit the filesystem.
 
 > In my usage these Hooks have fixed 100% of the errors detected.
 
-**Note:** The intention is to create and release client-specific hook tools as other LLM clients add hook support. For example, when Gemini CLI adds hooks, a `clj-paren-repair-gemini-hook` tool will be made available.
+**Note:** This binary already works with [Codex](https://developers.openai.com/codex/hooks), which shares Claude Code's hook wire format — see [Use with Codex](#use-with-codex-apply_patch) below. As other LLM clients add hook support they'll be covered too; for example, when Gemini CLI adds hooks it can use the same approach.
 
 **Why hooks instead of MCP tools?**
 
@@ -299,6 +299,62 @@ Add to `~/.claude/settings.json`:
 **Write operations**: If delimiter errors are detected, the content is fixed via parinfer before writing. If unfixable, the write is blocked.
 
 **Edit operations**: A backup is created before the edit. After the edit, if delimiter errors exist, they're fixed automatically. If unfixable, the file is restored from backup.
+
+### Use with Codex (`apply_patch`)
+
+[Codex](https://developers.openai.com/codex/hooks) supports the same hook wire
+format as Claude Code, so the **same `clj-paren-repair-claude-hook` binary**
+works there too — no separate tool to install. The one difference: Codex makes
+all file edits through a single `apply_patch` tool (a patch document) rather
+than `Write`/`Edit`. The hook understands `apply_patch` and repairs every
+Clojure file a patch touches.
+
+Add to `~/.codex/hooks.json` (global) or `<repo>/.codex/hooks.json` (per
+project):
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          { "type": "command", "command": "clj-paren-repair-claude-hook --cljfmt" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^apply_patch$",
+        "hooks": [
+          { "type": "command", "command": "clj-paren-repair-claude-hook --cljfmt" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^apply_patch$",
+        "hooks": [
+          { "type": "command", "command": "clj-paren-repair-claude-hook --cljfmt" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**What each hook does:**
+
+- **PreToolUse `apply_patch`** backs up the files the patch will touch.
+- **PostToolUse `apply_patch`** repairs delimiter errors in the patched files. If a file can't be fixed it's restored from the backup and Codex is told why. On a *successful* repair Codex is notified that the file changed on disk (re-read before further edits) — `apply_patch` matches on context lines, so a silent change can desync the next patch.
+- **SessionStart** sweeps `clojure-mcp-light` temp dirs idle for 3+ days. Codex has no `SessionEnd` event, so cleanup runs at session start instead.
+
+**Codex-specific notes:**
+
+- **Trust the hooks.** Codex requires you to review and trust command hooks before they run — use `/hooks` in the TUI. Trust is keyed to the file's hash, so editing `hooks.json` requires re-trusting.
+- **Hooks run only in the interactive TUI**, not under `codex exec`.
+- **`SessionStart` fires when the session is configured** — i.e. after your first message, not at bare launch.
+- The `^apply_patch$` matcher scopes the hook to file edits. (`.*` also works but then the hook runs on every tool call, including shell commands.)
 
 ### Statistics Tracking
 
