@@ -360,6 +360,16 @@
            (str ". Left in place (no backup or revert disabled): "
                 (string/join ", " kept))))))
 
+(defn- patch-repaired-context
+  "Non-blocking note telling the agent that delimiters were auto-repaired, so
+  the on-disk file no longer matches the patch it submitted. This matters for
+  apply_patch specifically, whose context-line matching breaks if the agent
+  patches from a stale memory of the file."
+  [repaired]
+  (str "Auto-repaired delimiters in "
+       (string/join ", " (map :file-path repaired))
+       "; on-disk content changed, re-read before further edits."))
+
 (defn- patch-applied?
   "Did the apply_patch tool actually modify files? Codex reports the result in
   tool_response as a STRING, e.g.
@@ -505,9 +515,11 @@
                              (assoc (fix-and-format-file! target *enable-cljfmt* "PostToolUse:apply_patch")
                                     :op op
                                     :file-path target)))
-              failures (remove :success results)]
+              failures (remove :success results)
+              repaired (filter :delimiter-fixed results)]
           (timbre/debug "PostApplyPatch: processed" (count results) "Clojure file(s)")
-          (when (seq failures)
+          (cond
+            (seq failures)
             (let [outcomes (mapv (fn [{:keys [op file-path]}]
                                    {:file-path file-path
                                     :outcome (revert-patch-op! op session_id)})
@@ -516,7 +528,14 @@
                :reason (patch-failure-reason failures outcomes)
                :hookSpecificOutput
                {:hookEventName "PostToolUse"
-                :additionalContext "There are delimiter errors in one or more Clojure files touched by apply_patch."}}))))
+                :additionalContext "There are delimiter errors in one or more Clojure files touched by apply_patch."}})
+
+            (seq repaired)
+            {:hookSpecificOutput
+             {:hookEventName "PostToolUse"
+              :additionalContext (patch-repaired-context repaired)}}
+
+            :else nil)))
       (finally
         (delete-patch-backups! ops session_id)))))
 

@@ -173,7 +173,7 @@
   "Exit code: 1\nWall time: 0.1 seconds\nOutput:\nFailed to apply patch.\n")
 
 (deftest post-apply-patch-test
-  (testing "repairs Clojure files after apply_patch runs"
+  (testing "repairs Clojure files after apply_patch and reports the repair"
     (with-temp-project*
       (fn [dir]
         (let [file-path (str (fs/path dir "src/core.clj"))]
@@ -181,15 +181,38 @@
           (spit file-path "(def x 1" :encoding "UTF-8")
 
           (binding [hook/*enable-cljfmt* false]
+            (let [result (hook/process-hook
+                          {:session_id "post-apply-patch-test"
+                           :cwd dir
+                           :hook_event_name "PostToolUse"
+                           :tool_name "apply_patch"
+                           :tool_input {:command (apply-patch-command "src/core.clj")}
+                           :tool_response apply-patch-success-response})
+                  context (get-in result [:hookSpecificOutput :additionalContext])]
+              ;; File is repaired on disk ...
+              (is (= "(def x 1)" (slurp file-path :encoding "UTF-8")))
+              ;; ... and the agent is told (non-blocking) that the file changed
+              ;; underneath it, so apply_patch's context matching won't go stale.
+              (is (nil? (:decision result)))
+              (is (re-find #"Auto-repaired" context))
+              (is (re-find #"core\.clj" context)))))))))
+
+(deftest post-apply-patch-clean-is-silent-test
+  (testing "a clean apply_patch needing no repair returns nil (no context noise)"
+    (with-temp-project*
+      (fn [dir]
+        (let [file-path (str (fs/path dir "src/core.clj"))]
+          (fs/create-dirs (fs/parent file-path))
+          (spit file-path "(def x 1)" :encoding "UTF-8")
+
+          (binding [hook/*enable-cljfmt* false]
             (is (nil? (hook/process-hook
-                       {:session_id "post-apply-patch-test"
+                       {:session_id "post-apply-patch-clean-test"
                         :cwd dir
                         :hook_event_name "PostToolUse"
                         :tool_name "apply_patch"
                         :tool_input {:command (apply-patch-command "src/core.clj")}
-                        :tool_response apply-patch-success-response}))))
-
-          (is (= "(def x 1)" (slurp file-path :encoding "UTF-8"))))))))
+                        :tool_response apply-patch-success-response})))))))))
 
 (deftest post-apply-patch-skips-failed-patch-test
   (testing "a non-zero exit code in the tool_response string skips repair"
