@@ -556,6 +556,23 @@
       (timbre/error "  Unexpected error during cleanup:" (.getMessage e))
       nil)))
 
+(defmethod process-hook ["SessionStart" nil]
+  [{:keys [session_id]}]
+  (timbre/info "SessionStart: sweeping stale session dirs")
+  (try
+    (let [report (tmp/cleanup-stale-sessions! {:session-id session_id})]
+      (timbre/info "  Swept stale sessions under:" (:base report))
+      (timbre/info "  Deleted directories:" (:deleted report))
+      (timbre/info "  Kept directories:" (count (:kept report)))
+      (when (seq (:errors report))
+        (timbre/warn "  Errors during sweep:")
+        (doseq [{:keys [path error]} (:errors report)]
+          (timbre/warn "    " path "-" error)))
+      nil)
+    (catch Exception e
+      (timbre/error "  Unexpected error during stale-session sweep:" (.getMessage e))
+      nil)))
+
 (defn -main [& args]
   (let [options (handle-cli-args args)
         log-level (:log-level options)

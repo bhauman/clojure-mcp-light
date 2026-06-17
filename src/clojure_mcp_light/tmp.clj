@@ -255,3 +255,70 @@
                    {:path sess-dir
                     :error (.getMessage e)})))))
     @results))
+
+(def ^:private default-max-session-age-ms
+  "Default staleness threshold for stale-session cleanup: 3 days."
+  (* 3 24 60 60 1000))
+
+(defn dir-last-activity-ms
+  "Most recent last-modified time (epoch ms) across a directory tree.
+
+  We look at the whole tree rather than the directory itself because nested
+  writes (backups, nREPL session files) bump child mtimes but not the parent's
+  creation-time mtime. Using the tree max means a session still in use is not
+  judged stale just because its top-level dir was created days ago."
+  [dir]
+  (->> (file-seq (fs/file dir))
+       (map #(.lastModified ^java.io.File %))
+       (reduce max 0)))
+
+(defn cleanup-stale-sessions!
+  "Sweep stale session directories under the clojure-mcp-light runtime base,
+  deleting any not modified within `:max-age-ms` (default 3 days).
+
+  Editor-agnostic: Claude Code can call this from SessionStart or SessionEnd, and
+  Codex (which has SessionStart but no SessionEnd) calls it from SessionStart.
+  Either way old sessions get reaped without relying on a clean session exit.
+
+  The current session's directories (resolved from :session-id / :gpid) are
+  always protected, so a live session is never reaped even if it has run a while.
+
+  Parameters:
+  - :session-id - Optional current session ID to protect
+  - :gpid       - Optional grandparent PID for fallback id calculation
+  - :max-age-ms - Staleness threshold in milliseconds (default 3 days)
+  - :now-ms     - Current time in ms (defaults to now; for testing)
+
+  Returns a cleanup report map:
+  - :base    - the scanned base directory
+  - :deleted - List of deleted directory paths
+  - :kept    - List of directories left in place (too recent or protected)
+  - :errors  - List of {:path path :error error-msg} maps for failures"
+  [{:keys [session-id gpid max-age-ms now-ms]}]
+  (let [base (fs/path (runtime-base-dir) "clojure-mcp-light")
+        max-age (or max-age-ms default-max-session-age-ms)
+        now (or now-ms (System/currentTimeMillis))
+        protected (set (map #(str (fs/file-name (session-root {:session-id %})))
+                            (get-possible-session-ids
+                             {:session-id session-id :gpid gpid})))
+        results (atom {:base (str base) :deleted [] :kept [] :errors []})]
+    (when (fs/exists? base)
+      (doseq [dir (fs/list-dir base)
+              :when (fs/directory? dir)]
+        (let [dir-str (str dir)]
+          (try
+            (cond
+              (contains? protected (str (fs/file-name dir)))
+              (swap! results update :kept conj dir-str)
+
+              (>= (- now (dir-last-activity-ms dir)) max-age)
+              (do (fs/delete-tree dir)
+                  (swap! results update :deleted conj dir-str))
+
+              :else
+              (swap! results update :kept conj dir-str))
+            (catch Exception e
+              (swap! results update :errors conj
+                     {:path dir-str
+                      :error (.getMessage e)}))))))
+    @results))
