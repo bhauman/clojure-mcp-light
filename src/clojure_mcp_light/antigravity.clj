@@ -17,9 +17,13 @@
   PostToolUse looks it up. Files that can't be repaired are left exactly as the
   model wrote them - no backup, no revert. Reverting a file out from under the
   agent (which PostToolUse can't even explain, since its output is {}) is more
-  confusing than leaving a delimiter error in place."
-  (:require [clojure-mcp-light.hook :as hook]
-            [clojure-mcp-light.tmp :as tmp]
+  confusing than leaving a delimiter error in place.
+
+  The repair functions are injected by hook.clj as a `deps` map
+  ({:clojure-file? :fix-and-format-file! :cljfmt?}) so this namespace doesn't
+  depend on hook.clj - that keeps the dependency one-directional (hook ->
+  antigravity)."
+  (:require [clojure-mcp-light.tmp :as tmp]
             [babashka.fs :as fs]
             [clojure.string :as string]
             [cheshire.core :as json]
@@ -64,10 +68,10 @@
   "Before an edit tool runs we have the target path but can't repair yet (the
   file isn't written, and we can't rewrite the tool input). Stash the path so
   PostToolUse can repair on disk, then allow the edit."
-  [{:keys [toolCall stepIdx conversationId workspacePaths]}]
+  [{:keys [clojure-file?]} {:keys [toolCall stepIdx conversationId workspacePaths]}]
   (let [tool (:name toolCall)
         target (resolve-target (get-in toolCall [:args :TargetFile]) workspacePaths)]
-    (when (and (contains? edit-tools tool) target (hook/clojure-file? target))
+    (when (and (contains? edit-tools tool) target (clojure-file? target))
       (stash-target! conversationId stepIdx target)
       (timbre/debug "Antigravity PreToolUse: stashed" target "for step" stepIdx))
     {:decision "allow"}))
@@ -80,12 +84,13 @@
   include toolCall.args.TargetFile for edit tools, so we prefer that and fall
   back to the stash. Only the edit tools carry TargetFile, so its presence also
   scopes us to real edits. Unfixable files are left as the model wrote them."
-  [{:keys [toolCall stepIdx conversationId workspacePaths]}]
+  [{:keys [clojure-file? fix-and-format-file! cljfmt?]}
+   {:keys [toolCall stepIdx conversationId workspacePaths]}]
   (let [target (or (resolve-target (get-in toolCall [:args :TargetFile]) workspacePaths)
                    (read-target conversationId stepIdx))]
     (try
-      (when (and target (fs/exists? target) (hook/clojure-file? target))
-        (let [result (hook/fix-and-format-file! target hook/*enable-cljfmt* "Antigravity:PostToolUse")]
+      (when (and target (fs/exists? target) (clojure-file? target))
+        (let [result (fix-and-format-file! target cljfmt? "Antigravity:PostToolUse")]
           (timbre/debug "Antigravity PostToolUse:" target
                         "repaired?" (:delimiter-fixed result)
                         "success?" (:success result))))
@@ -106,25 +111,27 @@
   {})
 
 (defn process
-  "Dispatch a parsed Antigravity payload by event name. Unhandled events return
-  a safe empty response."
-  [event input]
+  "Dispatch a parsed Antigravity payload by event name. `deps` carries the
+  injected repair functions. Unhandled events return a safe empty response."
+  [deps event input]
   (case event
-    "PreToolUse"  (pre-tool-use input)
-    "PostToolUse" (post-tool-use input)
+    "PreToolUse"  (pre-tool-use deps input)
+    "PostToolUse" (post-tool-use deps input)
     "Stop"        (stop input)
     {}))
 
 (defn run-hook!
   "Entry point for Antigravity mode. Reads the camelCase payload from stdin,
-  dispatches on `event`, prints the response JSON, and exits 0. Fails safe: on
-  any error it emits a non-blocking response so the agent is never wedged."
-  [event]
+  dispatches on `event`, prints the response JSON, and exits 0. `deps` injects
+  the repair functions ({:clojure-file? :fix-and-format-file! :cljfmt?}). Fails
+  safe: on any error it emits a non-blocking response so the agent is never
+  wedged."
+  [deps event]
   (try
     (let [input-json (slurp *in*)
           _ (timbre/debug "Antigravity INPUT [" event "]:" input-json)
           input (json/parse-string input-json true)
-          response (process event input)]
+          response (process deps event input)]
       (timbre/debug "Antigravity OUTPUT:" (json/generate-string response))
       (println (json/generate-string response))
       (System/exit 0))

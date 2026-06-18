@@ -10,6 +10,7 @@
             [clojure.string :as string]
             [clojure.java.io :as io]
             [clojure.tools.cli :refer [parse-opts]]
+            [clojure-mcp-light.antigravity :as antigravity]
             [clojure-mcp-light.apply-patch :as apply-patch]
             [clojure-mcp-light.delimiter-repair
              :refer [delimiter-error? fix-delimiters actual-delimiter-error?]]
@@ -602,8 +603,12 @@
               stats/*stats-file-path* stats-path]
       (if (:antigravity options)
         ;; Antigravity uses a different wire format and is dispatched by the
-        ;; --event flag; the adapter is loaded lazily to avoid a load-time cycle.
-        ((requiring-resolve 'clojure-mcp-light.antigravity/run-hook!) (:event options))
+        ;; --event flag. The repair fns are injected so the adapter needn't
+        ;; depend on this namespace.
+        (antigravity/run-hook! {:clojure-file? clojure-file?
+                                :fix-and-format-file! fix-and-format-file!
+                                :cljfmt? *enable-cljfmt*}
+                               (:event options))
         (try
           (let [input-json (slurp *in*)
                 _ (timbre/debug "INPUT:" input-json)
