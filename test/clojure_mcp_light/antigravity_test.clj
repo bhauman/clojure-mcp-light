@@ -43,6 +43,24 @@
             (is (= "(def x 1)" (slurp file :encoding "UTF-8")))
             (finally (fs/delete-tree dir))))))))
 
+(deftest post-tool-use-uses-toolcall-path-test
+  (testing "PostToolUse repairs via toolCall.args.TargetFile directly, no Pre stash"
+    (with-temp-runtime*
+      (fn [_]
+        (let [dir (str (fs/create-temp-dir {:prefix "ag-ws-"}))
+              file (str (fs/path dir "core.clj"))]
+          (try
+            (spit file "(def x 1" :encoding "UTF-8")
+            (binding [hook/*enable-cljfmt* false]
+              ;; No PreToolUse call => no stash; Post must use its own toolCall
+              ;; (this is what real agy sends).
+              (is (= {} (ag/post-tool-use {:toolCall {:name "replace_file_content"
+                                                      :args {:TargetFile file}}
+                                           :stepIdx 5 :conversationId "no-stash"
+                                           :workspacePaths [dir]}))))
+            (is (= "(def x 1)" (slurp file :encoding "UTF-8")))
+            (finally (fs/delete-tree dir))))))))
+
 (deftest pre-tool-use-ignores-non-edits-test
   (testing "non-edit tools and non-Clojure files are allowed without stashing"
     (with-temp-runtime*

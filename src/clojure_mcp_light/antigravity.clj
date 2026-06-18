@@ -73,10 +73,16 @@
     {:decision "allow"}))
 
 (defn post-tool-use
-  "After the edit the file is on disk. Look up the stashed path and repair it if
-  it's a Clojure file. Unfixable files are left as the model wrote them."
-  [{:keys [stepIdx conversationId]}]
-  (let [target (read-target conversationId stepIdx)]
+  "After the edit the file is on disk; repair it if it's a Clojure file.
+
+  The documented contract says PostToolUse carries no toolCall, so we'd rely on
+  the path stashed by PreToolUse. In practice (agy 1.0.9) PostToolUse *does*
+  include toolCall.args.TargetFile for edit tools, so we prefer that and fall
+  back to the stash. Only the edit tools carry TargetFile, so its presence also
+  scopes us to real edits. Unfixable files are left as the model wrote them."
+  [{:keys [toolCall stepIdx conversationId workspacePaths]}]
+  (let [target (or (resolve-target (get-in toolCall [:args :TargetFile]) workspacePaths)
+                   (read-target conversationId stepIdx))]
     (try
       (when (and target (fs/exists? target) (hook/clojure-file? target))
         (let [result (hook/fix-and-format-file! target hook/*enable-cljfmt* "Antigravity:PostToolUse")]
