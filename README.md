@@ -211,7 +211,7 @@ errors before they hit the filesystem.
 
 > In my usage these Hooks have fixed 100% of the errors detected.
 
-**Note:** This binary already works with [Codex](https://developers.openai.com/codex/hooks), which shares Claude Code's hook wire format — see [Use with Codex](#use-with-codex-apply_patch) below. As other LLM clients add hook support they'll be covered too; for example, when Gemini CLI adds hooks it can use the same approach.
+**Note:** This binary already works with [Codex](https://developers.openai.com/codex/hooks) (which shares Claude Code's hook wire format — see [Use with Codex](#use-with-codex-apply_patch)) and with [Antigravity](https://antigravity.google/docs/hooks) (via an adapter — see [Use with Antigravity](#use-with-antigravity)). As other LLM clients add hook support they'll be covered too; for example, when Gemini CLI adds hooks it can use the same approach.
 
 **Why hooks instead of MCP tools?**
 
@@ -355,6 +355,58 @@ project):
 - **Hooks run only in the interactive TUI**, not under `codex exec`.
 - **`SessionStart` fires when the session is configured** — i.e. after your first message, not at bare launch.
 - The `^apply_patch$` matcher scopes the hook to file edits. (`.*` also works but then the hook runs on every tool call, including shell commands.)
+
+### Use with Antigravity
+
+[Antigravity](https://antigravity.google/docs/hooks) (the `agy` CLI) also
+supports command hooks, and the **same binary** handles it — but its wire
+format differs from Claude Code / Codex (camelCase fields, no event name in the
+payload, and a PostToolUse that must return `{}`). So Antigravity mode is opted
+into explicitly with `--antigravity` and the event is passed via `--event`,
+since the payload doesn't carry one.
+
+Antigravity edits files through `write_to_file` / `replace_file_content` /
+`multi_replace_file_content` (the target path is in `args.TargetFile`). Hooks
+live in `.agents/hooks.json` (workspace) or `~/.gemini/config/hooks.json`
+(global), and the schema nests events under a named hook:
+
+```json
+{
+  "clj-delimiter-repair": {
+    "PreToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content",
+        "hooks": [
+          { "type": "command", "command": "clj-paren-repair-claude-hook --antigravity --event PreToolUse --cljfmt" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content",
+        "hooks": [
+          { "type": "command", "command": "clj-paren-repair-claude-hook --antigravity --event PostToolUse --cljfmt" }
+        ]
+      }
+    ],
+    "Stop": [
+      { "type": "command", "command": "clj-paren-repair-claude-hook --antigravity --event Stop --cljfmt" }
+    ]
+  }
+}
+```
+
+**What each hook does:**
+
+- **PostToolUse** does the work: it repairs the edited file on disk (the path comes from the PostToolUse `toolCall.args.TargetFile`). Files that can't be repaired are left exactly as the model wrote them — **no backup, no revert**. (PostToolUse output must be `{}`, so there's no way to message the agent; silently reverting under it would be more confusing than a leftover error.)
+- **PreToolUse** is a safety net: it stashes the target path keyed by `stepIdx` in case a future Antigravity version stops including `toolCall` in PostToolUse (the documented contract). It returns `{"decision":"allow"}` and never blocks.
+- **Stop** runs the stale temp-dir sweep — Antigravity has no `SessionStart`/`SessionEnd`.
+
+**Antigravity-specific notes:**
+
+- **Shell-bypass gap (important here).** These hooks only fire for the file-edit *tools*. `agy` will sometimes write a file via `run_command` (e.g. a `cat <<EOF` heredoc), which carries no `TargetFile` and so isn't caught. To cover that, pair with [`clj-paren-repair`](#clj-paren-repair) or instruct the agent to prefer its edit tools over shell writes.
+- **Repairs are silent.** PostToolUse returns `{}`, so the hook can't tell the agent it changed the file. In practice `agy` re-reads files after editing, so this rarely matters.
+- **`--event` is required** in Antigravity mode — the payload has no event-name field, so the hook is told which event it's handling via the flag.
 
 ### Statistics Tracking
 
