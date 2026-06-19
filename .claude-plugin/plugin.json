@@ -1,0 +1,14 @@
+{
+  "name": "clojure-tools",
+  "version": "0.2.1",
+  "description": "Clojure development tools: auto-fix delimiter errors, nREPL evaluation",
+  "author": {
+    "name": "Bruce Hauman",
+    "url": "https://github.com/bhauman"
+  },
+  "repository": "https://github.com/bhauman/clojure-mcp-light",
+  "homepage": "https://github.com/bhauman/clojure-mcp-light#installation-for-claude-code",
+  "license": "EPL-2.0",
+  "keywords": ["clojure", "clojurescript", "repl", "nrepl", "parinfer", "babashka"],
+  "hooks": "./hooks/hooks.json"
+}
