@@ -10,6 +10,7 @@
             [clojure.string :as string]
             [clojure.java.io :as io]
             [clojure.tools.cli :refer [parse-opts]]
+            [clojure-mcp-light.antigravity :as antigravity]
             [clojure-mcp-light.apply-patch :as apply-patch]
             [clojure-mcp-light.delimiter-repair
              :refer [delimiter-error? fix-delimiters actual-delimiter-error?]]
@@ -47,6 +48,11 @@
    [nil "--log-file PATH" "Path to log file"
     :id :log-file
     :default "./.clojure-mcp-light-hooks.log"]
+   [nil "--antigravity" "Run in Antigravity hook mode (camelCase wire format)"
+    :id :antigravity
+    :default false]
+   [nil "--event EVENT" "Antigravity hook event name (PreToolUse|PostToolUse|Stop)"
+    :id :event]
    ["-h" "--help" "Show help message"]])
 
 (defn usage []
@@ -595,23 +601,31 @@
               *enable-revert* (not (:no-revert options))
               stats/*enable-stats* enable-stats?
               stats/*stats-file-path* stats-path]
-      (try
-        (let [input-json (slurp *in*)
-              _ (timbre/debug "INPUT:" input-json)
-              _ (when *enable-cljfmt*
-                  (timbre/debug "cljfmt formatting is ENABLED"))
-              _ (when stats/*enable-stats*
-                  (timbre/debug "stats tracking is ENABLED, writing to:" stats/*stats-file-path*))
-              hook-input (json/parse-string input-json true)
-              response (process-hook hook-input)
-              _ (timbre/debug "OUTPUT:" (json/generate-string response))]
-          (when response
-            (println (json/generate-string response)))
-          (System/exit 0))
-        (catch Exception e
-          (timbre/error "Hook error:" (.getMessage e))
-          (timbre/error "Stack trace:" (with-out-str (.printStackTrace e)))
-          (binding [*out* *err*]
-            (println "Hook error:" (.getMessage e))
-            (println "Stack trace:" (with-out-str (.printStackTrace e))))
-          (System/exit 2))))))
+      (if (:antigravity options)
+        ;; Antigravity uses a different wire format and is dispatched by the
+        ;; --event flag. The repair fns are injected so the adapter needn't
+        ;; depend on this namespace.
+        (antigravity/run-hook! {:clojure-file? clojure-file?
+                                :fix-and-format-file! fix-and-format-file!
+                                :cljfmt? *enable-cljfmt*}
+                               (:event options))
+        (try
+          (let [input-json (slurp *in*)
+                _ (timbre/debug "INPUT:" input-json)
+                _ (when *enable-cljfmt*
+                    (timbre/debug "cljfmt formatting is ENABLED"))
+                _ (when stats/*enable-stats*
+                    (timbre/debug "stats tracking is ENABLED, writing to:" stats/*stats-file-path*))
+                hook-input (json/parse-string input-json true)
+                response (process-hook hook-input)
+                _ (timbre/debug "OUTPUT:" (json/generate-string response))]
+            (when response
+              (println (json/generate-string response)))
+            (System/exit 0))
+          (catch Exception e
+            (timbre/error "Hook error:" (.getMessage e))
+            (timbre/error "Stack trace:" (with-out-str (.printStackTrace e)))
+            (binding [*out* *err*]
+              (println "Hook error:" (.getMessage e))
+              (println "Stack trace:" (with-out-str (.printStackTrace e))))
+            (System/exit 2)))))))
