@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **Codex `apply_patch` hook support** - The hook now dispatches on Codex's `apply_patch` tool via the existing `process-hook` multimethod (no new binary or namespace). PreToolUse backs up the files a patch will touch; PostToolUse repairs them, restoring any unfixable file from its backup. Validated end-to-end against Codex 0.137.0.
+- **Auto-repair notice for `apply_patch`** - On a successful delimiter repair the PostToolUse hook tells the agent the on-disk file changed (re-read before further edits), since `apply_patch` matches on context lines and a silent change can desync the next patch.
+- **SessionStart stale temp-dir sweep** - A generic `SessionStart` hook (fires for both Claude Code and Codex) reaps `clojure-mcp-light` session dirs idle for 3+ days. This covers Codex, which has a `SessionStart` event but no `SessionEnd`. Staleness is judged by the newest mtime across the session tree, so an active session (and its persistent nREPL state) is never reaped; the current session is always protected.
+
 ## [0.2.2] - 2026-03-14
 
 This release fixes the PreToolUse Write hook so delimiter repairs are actually applied, adds ClojureDart (.cljd) file support, and updates documentation to recommend heredoc for code evaluation.

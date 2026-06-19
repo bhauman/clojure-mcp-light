@@ -329,3 +329,60 @@
       (is (fs/exists? nrepl))
       (is (fs/directory? backups))
       (is (fs/directory? nrepl)))))
+
+;; ============================================================================
+;; Stale Session Sweep
+;; ============================================================================
+
+(deftest cleanup-stale-sessions!-test
+  (testing "deletes stale dirs, keeps recent ones, and protects the live session"
+    (let [base-parent (fs/create-temp-dir {:prefix "cml-sweep-"})
+          base (fs/path base-parent "clojure-mcp-light")
+          day-ms (* 24 60 60 1000)
+          now 1700000000000]
+      (try
+        (with-redefs [tmp/runtime-base-dir (constantly (str base-parent))]
+          (fs/create-dirs base)
+          (let [stale (fs/create-dirs (fs/path base "stale-proj-aaa"))
+                fresh (fs/create-dirs (fs/path base "fresh-proj-bbb"))
+                live-name (str (fs/file-name (tmp/session-root {:session-id "live-sess"})))
+                live (fs/create-dirs (fs/path base live-name))
+                stale-file (fs/path stale "backups" "x.edn")
+                old (- now (* 10 day-ms))]
+            (fs/create-dirs (fs/parent stale-file))
+            (spit (str stale-file) "{}")
+            ;; stale and live are 10 days old throughout their trees; fresh is "now".
+            ;; Back-date nested files too, since staleness is judged by the
+            ;; newest mtime in the whole tree.
+            (fs/set-last-modified-time stale-file old)
+            (fs/set-last-modified-time (fs/path stale "backups") old)
+            (fs/set-last-modified-time stale old)
+            (fs/set-last-modified-time live old)
+            (fs/set-last-modified-time fresh now)
+
+            (let [report (tmp/cleanup-stale-sessions! {:session-id "live-sess"
+                                                       :max-age-ms (* 3 day-ms)
+                                                       :now-ms now})]
+              ;; Old, unprotected session is gone (whole tree, including files).
+              (is (not (fs/exists? stale)))
+              ;; Recent session survives.
+              (is (fs/exists? fresh))
+              ;; Live session is protected even though it is old.
+              (is (fs/exists? live))
+              (is (some #(str/ends-with? % "stale-proj-aaa") (:deleted report)))
+              (is (some #(str/ends-with? % live-name) (:kept report)))
+              (is (some #(str/ends-with? % "fresh-proj-bbb") (:kept report)))
+              (is (empty? (:errors report))))))
+        (finally
+          (fs/delete-tree base-parent)))))
+
+  (testing "no base directory yields an empty report without error"
+    (let [base-parent (fs/create-temp-dir {:prefix "cml-sweep-empty-"})]
+      (try
+        (with-redefs [tmp/runtime-base-dir (constantly (str base-parent))]
+          (let [report (tmp/cleanup-stale-sessions! {:session-id "x"})]
+            (is (= [] (:deleted report)))
+            (is (= [] (:kept report)))
+            (is (= [] (:errors report)))))
+        (finally
+          (fs/delete-tree base-parent))))))
