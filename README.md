@@ -45,6 +45,9 @@ bbin install https://github.com/bhauman/clojure-mcp-light.git --tag v0.2.2 --as 
 
 See individual tool sections below for important configuration and usage details.
 
+**Windows shell note:** When `bbin` is installed as a `.cmd` shim, Windows command forwarding can strip the JSON-style quotes in `--main-opts`. In PowerShell or cmd.exe, escape embedded `"` characters as `\"`, for example:
+`--main-opts '[\"-m\" \"clojure-mcp-light.nrepl-eval\"]'`
+
 ## Requirements
 
 - [Babashka](https://github.com/babashka/babashka) - Fast Clojure scripting (includes cljfmt)
