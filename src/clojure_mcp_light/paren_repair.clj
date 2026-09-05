@@ -6,7 +6,7 @@
   (:require [babashka.fs :as fs]
             [cljfmt.core :as cljfmt]
             [clojure.string :as string]
-            [clojure-mcp-light.delimiter-repair :refer [fix-delimiters]]
+            [clojure-mcp-light.delimiter-repair :refer [delimiter-error? fix-delimiters]]
             [clojure-mcp-light.hook :as hook :refer [clojure-file? fix-and-format-file!]]
             [taoensso.timbre :as timbre]))
 
@@ -36,8 +36,9 @@
    - :formatted - boolean indicating if code was formatted"
   []
   (let [input (slurp *in*)
-        {:keys [text method]} (fix-delimiters input)
-        delimiter-fixed? (some? method)]
+        had-delimiter-error? (delimiter-error? input)
+        text (fix-delimiters input)
+        delimiter-fixed? (and had-delimiter-error? (some? text))]
     (if text
       ;; fix-delimiters succeeded (or no errors)
       (let [formatted-text (try
