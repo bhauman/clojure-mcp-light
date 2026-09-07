@@ -115,6 +115,7 @@
    - .cljs (ClojureScript)
    - .cljc (Clojure/ClojureScript shared)
    - .cljd (ClojureDart)
+   - .jolt (Jolt - Clojure reader syntax on a Chez Scheme runtime)
    - .bb (Babashka)
    - .edn (Extensible Data Notation)
    - .lpy (Basilisp)
@@ -127,6 +128,7 @@
           (string/ends-with? lower-path ".cljs")
           (string/ends-with? lower-path ".cljc")
           (string/ends-with? lower-path ".cljd")
+          (string/ends-with? lower-path ".jolt")
           (string/ends-with? lower-path ".bb")
           (string/ends-with? lower-path ".lpy")
           (string/ends-with? lower-path ".edn")
@@ -581,8 +583,14 @@
         enable-stats? (:stats options)
         stats-path (stats/normalize-stats-path (:stats-file options))]
 
-    (timbre/set-config!
-     {:appenders {:spit (assoc
+    ;; merge-config! (not set-config!) so the default :middleware,
+    ;; :timestamp-opts, :output-fn, etc. survive. set-config! replaces the
+    ;; whole config atom, so a call with just :appenders silently drops
+    ;; every other default key. Since merge-config! keeps the default
+    ;; :println appender around, disable it explicitly here.
+    (timbre/merge-config!
+     {:appenders {:println {:enabled? false}
+                  :spit (assoc
                          (timbre/spit-appender {:fname log-file})
                          :enabled? enable-logging?
                          :min-level (or log-level :report)

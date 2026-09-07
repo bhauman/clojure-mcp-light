@@ -148,11 +148,11 @@
          vec)))
 
 (defn get-listening-jvm-ports
-  "Find ports where Java/Clojure/Babashka processes are listening.
+  "Find ports where Java/Clojure/Babashka/Jolt processes are listening.
    Returns vector of port numbers, empty vector on error."
   []
   (try
-    (let [proc (.. (ProcessBuilder. ["sh" "-c" "lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | grep -Ei 'java|clojure|babashka|bb|nrepl'"])
+    (let [proc (.. (ProcessBuilder. ["sh" "-c" "lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | grep -Ei 'java|clojure|babashka|bb|nrepl|jolt'"])
                    (redirectErrorStream true)
                    start)
           _ (.waitFor proc 5 java.util.concurrent.TimeUnit/SECONDS)
