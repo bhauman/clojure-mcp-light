@@ -127,7 +127,9 @@
       (if (has-stdin-data?)
         ;; Stdin mode: read, process, output to stdout
         (do
-          (timbre/set-config! {:appenders {}})
+          ;; merge-config! so defaults survive; println must be disabled
+          ;; explicitly or stdout (our result channel) picks up log lines.
+          (timbre/merge-config! {:appenders {:println {:enabled? false}}})
           (let [result (process-stdin)]
             (System/exit (if (:success result) 0 1))))
         ;; No stdin and no files - show help
@@ -138,7 +140,7 @@
       ;; File mode
       :else
       (do
-        (timbre/set-config! {:appenders {}})
+        (timbre/merge-config! {:appenders {:println {:enabled? false}}})
 
         (binding [hook/*enable-cljfmt* true]
           (try
