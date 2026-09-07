@@ -47,7 +47,7 @@ EOF
 
 ## Key Details
 
-- Hook processes Clojure files by extension: `.clj`, `.cljs`, `.cljc`, `.bb`, `.edn`, `.lpy` (case-insensitive)
+- Hook processes Clojure files by extension: `.clj`, `.cljs`, `.cljc`, `.cljd`, `.jolt`, `.bb`, `.edn`, `.lpy` (case-insensitive)
 - Hook also detects Babashka scripts via shebang (`#!/usr/bin/env bb` or `#!/usr/bin/bb`)
 - `delimiter-error?` only detects delimiter errors, not general syntax errors
 - Logging enabled via `CML_ENABLE_LOGGING=true`, writes to `.clojure-mcp-light-hooks.log`
